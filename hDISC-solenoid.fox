@@ -1,0 +1,760 @@
+INCLUDE 'COSY' ;
+PROCEDURE RUN ;
+
+{Georg Berg and Johan Frenje}
+{Symmetric MRSt, GB 10/29/2019}
+
+
+{VARIABLES FOR SYSTEM***********************************}
+
+VARIABLE FIELD_SHAPE_COEFS 1 6; {midplane radial dependence of dipole field}
+VARIABLE ENTRANCE_COEFS 1 6;    {dipole1 entrance-edge curvature}
+VARIABLE EXIT_COEFS 1 6;        {dipole2 exit-edge curvature}
+
+VARIABLE DE 1;                  {spectrometer energy spread}
+VARIABLE DA 1;                  {emission angle spread in x}
+VARIABLE DB 1;                  {emission angle spread in y}
+
+{START VARIABLES FOR RAY DEFINITION*********************}
+
+VARIABLE E0 1;        {Nominal deuteron energy}
+VARIABLE XX 1;        {Source size in X}
+VARIABLE AX 1;        {Half-emission angle in X-Z (bending) plane}
+VARIABLE YY 1;        {Source size in Y}
+VARIABLE AY 1;        {Half-emission angle in Y-Z (non-bending) plane}
+
+VARIABLE MRESOL_P1 1; {1st-order resolving power}
+VARIABLE HO_RES 1;    {HO energy resolution}
+VARIABLE gamma 1;     {used for r5 scaling}
+VARIABLE dtime 1;     {time resolution}
+VARIABLE time_min 1;  {min. total time}
+VARIABLE time_max 1;  {max. total time}
+
+VARIABLE denergy 1;  {energy resolution}
+
+VARIABLE deltaE 1;   {energy variation along FP}
+VARIABLE deltaX 1;   {distance along FP}
+VARIABLE imageX 1;   {image width along FP}
+VARIABLE imageE 1;   {image width along FP}
+
+{START VARIABLES FOR READ RAY***************************}
+
+VARIABLE WV 1;       {HO half-width signal distri at FP}
+VARIABLE WVY 1;      {1/2 VERTICAL IMAGE SIZE}  
+VARIABLE CENTER 1;   {center of HO signal distri at FP}
+VARIABLE NMAX 1;     {max number of iterations}
+VARIABLE LC 1;       {Length of central ray}
+
+VARIABLE WVPOL 1;       {POLVAL EQUIVALENT TO WV}
+
+{VARIABLE FOR VELOCITY ******************************}
+
+VARIABLE A_DEUT 1; {DEUTERON MASS IN AMU} 
+VARIABLE VELOC 1;
+VARIABLE TKIN 1;
+
+VARIABLE RAR 1;     {Resolution using AR ("aberration resolution" in two-letter-per-phrase-ese)}
+VARIABLE FP_tilt 1; {Focal plane tilt}
+
+{various other globals ******************************}
+
+VARIABLE RAYVECIN 1 11000 8;
+VARIABLE RAYVECOUT 1 11000 8;
+
+VARIABLE NRAYVEC 1;
+VARIABLE FP_radius 1;
+
+VARIABLE A 1;
+
+VARIABLE step_size 1;
+
+{VARIABLES FOR LINEARIZATION OF UNSREWED FOCAL PLANE}
+
+VARIABLE IENERGY 1;
+VARIABLE Z1 1; 
+VARIABLE Z2 1;
+VARIABLE X1 1;
+VARIABLE X2 1;
+
+VARIABLE A_COEFF 1;
+VARIABLE B_COEFF 1;
+VARIABLE C_COEFF 1;
+VARIABLE P_DIST  1;
+VARIABLE ISOR 1 20 9; {ISOchron.Results}
+VARIABLE FOPR 1 20 9; {FOcal Plane Results}
+VARIABLE RESDEF 12 20;
+
+VARIABLE M 1;
+VARIABLE N 1;
+VARIABLE K 1;
+
+{Resulting design parameters}
+
+VARIABLE DESIGN 1 10;
+VARIABLE FPDESIGN 1 10; {Focal Plane Design}
+VARIABLE ISODESIGN 1 10; {ISO Plane Design}
+VARIABLE CRDESIGN 1 5; {Central Ray Design}
+VARIABLE DESIGNDEF 18 10;
+
+VARIABLE FLAG_HO 1;
+
+VARIABLE OCT 1;
+VARIABLE NN 1;
+
+
+{RETURNS THE MAXIMUM OF THE Ith COORDINATE OF RAYVEC}
+FUNCTION MAXRAYVEC I;
+	VARIABLE ITRAY 1;
+
+	MAXRAYVEC:=-1E10;
+	LOOP ITRAY 2 NRAYVEC-1;
+		IF RAYVECOUT(ITRAY,I)>MAXRAYVEC;
+			MAXRAYVEC:=RAYVECOUT(ITRAY,I);
+		ENDIF;
+	ENDLOOP;
+ENDFUNCTION;
+
+
+{RETURNS THE MINIMUM OF THE Ith COORDINATE OF RAYVEC}
+FUNCTION MINRAYVEC I;
+	VARIABLE ITRAY 1;
+	MINRAYVEC:=1E10;
+	LOOP ITRAY 2 NRAYVEC-1;
+		IF RAYVECOUT(ITRAY,I)<MINRAYVEC;
+			MINRAYVEC:=RAYVECOUT(ITRAY,I);
+		ENDIF;
+	ENDLOOP;
+ENDFUNCTION;
+
+
+{ set VELOC equal to c*sqrt(1 - 1/(1 + T/m))^2) }
+PROCEDURE VELOCITY;
+	A_DEUT := 2.013553213;
+	VELOC := SQRT(1-1/(1+TKIN/(AMUMEV*A_DEUT))^2)*CLIGHT;
+ENDPROCEDURE;
+
+
+{Focal Plane Curve R, a neq 0 deg, Fp not perpendicular *******************************}
+PROCEDURE COMPUTE_FOCAL_PLANE_CURVE;
+	WRITE 6 'ME(1,6)= ' ME(1,6);
+	WRITE 6 'ME(1,1)= ' ME(1,1); 
+	WRITE 6 'ME(1,26)= ' ME(1,26);
+	WRITE 6 'ME(1,266)= ' ME(1,266);
+	WRITE 6 'ME(1,66)= ' ME(1,66);
+	WRITE 6 'ME(2,26)= ' ME(2,26);
+
+	FP_radius := (ME(1,6)^2+ME(1,1)^2*ME(1,26)^2)^1.5;
+	FP_radius := FP_radius/(ME(1,1)*(ME(1,6)*ME(1,266)-ME(1,26)*(ME(1,66)+2*ME(1,6)*ME(1,1)*ME(2,26))));
+
+	WRITE 6 'Focal plane curvature radius' FP_radius;
+	FPDESIGN(2):= FP_radius;
+ENDPROCEDURE;
+
+
+{MRSt geometrical Layout *******************************}
+PROCEDURE MRSt;
+	VARIABLE R 1;
+	VARIABLE theta 1;
+	VARIABLE solenoid_radius 1;
+	VARIABLE B 1;
+	R := 0.0522;
+	theta := 19.59;
+	solenoid_radius := 0.009;
+	
+	{set the dipole field to internally constant}
+	field_shape_coefs(1) := 0;
+	field_shape_coefs(2) := 0;{-0.16*R^2/solenoid_radius^2;}
+	field_shape_coefs(3) := 0;
+	field_shape_coefs(4) := 0;
+	field_shape_coefs(5) := 0;
+	field_shape_coefs(6) := 0;
+
+	{set the shape of the dipole to circular}
+	entrance_coefs(1) := 0;
+	entrance_coefs(2) := 1/2/solenoid_radius;
+	entrance_coefs(3) := 0;
+	entrance_coefs(4) := 1/8/solenoid_radius^3;
+	entrance_coefs(5) := 0;
+	entrance_coefs(6) := 1/16/solenoid_radius^5;
+	exit_coefs(1) := 0;
+	exit_coefs(2) := 1/2/solenoid_radius;
+	exit_coefs(3) := 0;
+	exit_coefs(4) := 1/8/solenoid_radius^3;
+	exit_coefs(5) := 0;
+	exit_coefs(6) := 1/16/solenoid_radius^5;
+	
+	PS 0.001;
+	
+	DL 0.30;
+	
+	MC R theta 0.001 FIELD_SHAPE_COEFS ENTRANCE_COEFS EXIT_COEFS 6;
+	
+	DL 0.38;
+    PS 0.010;
+{	DL 0.10;}
+
+	WRITE 6 '111111111 LC='&SF(LC,'(F16.5)');
+	WRITE 6 '111111111 SPOS'&SF(SPOS,'(F16.5)');
+
+	LC := SPOS;
+	WRITE 6 'GEOM R11 = ' ME(1,1);
+	WRITE 6 'GEOM R12 = ' ME(1,2);
+	WRITE 6 'GEOM R51 = ' ME(5,1);
+	WRITE 6 'GEOM R52 = ' ME(5,2);
+	MRESOL_P1 := ABS(ME(1,6))/ABS(2*XX*ME(1,1));
+	CRDESIGN(1) := MRESOL_P1;
+	WRITE 6 'CRDESIGN(1)' CRDESIGN(1);
+
+	WRITE 6 '1st-order resolving power' MRESOL_P1;
+	dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
+	WRITE 6 'dt (ps)' dtime;
+	WRITE 6 'dL (mm)' 1e-9*dtime*CONS(v0);
+	WRITE 6 'FP Tilt/deg' atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+
+	COMPUTE_FOCAL_PLANE_CURVE;
+
+	FP_radius := ME(1,6)^2/(ME(1,1)*ME(1,266));
+
+	WRITE 6 'Focal plane curvature radius' FP_radius;
+ENDPROCEDURE;
+
+
+PROCEDURE DEFINE_CHARACTERISTIC_RAYS;
+	VARIABLE IT_RAY 1;
+	VARIABLE IT_COORD 1;
+	VARIABLE TMP 1;
+	VARIABLE I 1;
+	VARIABLE J 1;
+	VARIABLE K 1;
+
+	{Define 5 target/spectr. entrance parameters}
+	XX := 0.000110;
+	YY := 0.000800;
+	AX := 0.000600/.30;
+	AY := 0.000800/.30;
+	
+	VELOCITY;
+
+	WRITE 6 'DE=' DE;
+
+	TKIN := 12.45*(1+(IENERGY-2)*DE);
+	VELOCITY;
+	WRITE 6 'TKIN' TKIN;
+	WRITE 6 'VELOC' VELOC;
+	WRITE 6 'CONS(v0)' CONS(v0);
+
+	CR {Clears all rays};
+	UM;
+
+	WRITE 6 'FLAG_HO' FLAG_HO;
+	IF FLAG_HO=0;
+		SR 0 0 0 0 0 DE 0 0 1;
+	ELSEIF FLAG_HO>0;
+		LOOP I -1 1;
+			LOOP J -1 1;
+				IF ABS(i)+ABS(j)#1;
+					LOOP k -1 1;
+						SR -XX   I*AX   0           J*AY 0 DE 0 0 5;
+						SR -XX/2 I*AX  YY*SQRT(3)/2 J*AY 0 DE 0 0 5;
+						SR  XX/2 I*AX  YY*SQRT(3)/2 J*AY 0 DE 0 0 5;
+						SR  XX   I*AX   0           J*AY 0 DE 0 0 5;
+						SR  XX/2 I*AX -YY*SQRT(3)/2 J*AY 0 DE 0 0 5;
+						SR -XX/2 I*AX -YY*SQRT(3)/2 J*AY 0 DE 0 0 5;
+						SR   0   I*AX   0           J*AY 0 DE 0 0 5;
+						SR -XX   I*AX   0           J*AY 0 DE-1.5/12.45 0 0 3;
+						SR -XX/2 I*AX  YY*SQRT(3)/2 J*AY 0 DE-1.5/12.45 0 0 3;
+						SR  XX/2 I*AX  YY*SQRT(3)/2 J*AY 0 DE-1.5/12.45 0 0 3;
+						SR  XX   I*AX   0           J*AY 0 DE-1.5/12.45 0 0 3;
+						SR  XX/2 I*AX -YY*SQRT(3)/2 J*AY 0 DE-1.5/12.45 0 0 3;
+						SR -XX/2 I*AX -YY*SQRT(3)/2 J*AY 0 DE-1.5/12.45 0 0 3;
+						SR   0   I*AX   0           J*AY 0 DE-1.5/12.45 0 0 3;
+						SR -XX   I*AX   0           J*AY 0 DE+1.5/12.45 0 0 2;
+						SR -XX/2 I*AX  YY*SQRT(3)/2 J*AY 0 DE+1.5/12.45 0 0 2;
+						SR  XX/2 I*AX  YY*SQRT(3)/2 J*AY 0 DE+1.5/12.45 0 0 2;
+						SR  XX   I*AX   0           J*AY 0 DE+1.5/12.45 0 0 2;
+						SR  XX/2 I*AX -YY*SQRT(3)/2 J*AY 0 DE+1.5/12.45 0 0 2;
+						SR -XX/2 I*AX -YY*SQRT(3)/2 J*AY 0 DE+1.5/12.45 0 0 2;
+						SR   0   I*AX   0           J*AY 0 DE+1.5/12.45 0 0 2;
+					ENDLOOP;
+				ENDIF;
+			ENDLOOP;
+		ENDLOOP;
+	ENDIF;
+
+	NRAYVEC:=1;
+	LOOP IT_RAY 1 NRAY;
+		LOOP IT_COORD 1 8;
+			VELGET RAY(IT_COORD) IT_RAY TMP;
+			RAYVECIN(NRAYVEC,IT_COORD):=TMP;
+		ENDLOOP;
+		NRAYVEC:=NRAYVEC+1;
+	ENDLOOP;
+ENDPROCEDURE;
+
+
+PROCEDURE READ_RAY;
+	VARIABLE ITRAY 1;
+	VARIABLE ITCOORD 1;
+	VARIABLE POSI 1 8;
+	VARIABLE POSF 1 8;
+	VARIABLE SAVEMAP 10000 8;
+
+	SM SAVEMAP;
+	DEFINE_CHARACTERISTIC_RAYS;
+	AM SAVEMAP;
+
+	LOOP ITRAY 1 NRAYVEC-1;
+		LOOP ITCOORD 1 8;
+			POSI(ITCOORD):=RAYVECIN(ITRAY,ITCOORD);
+		ENDLOOP;
+		POLVAL 1 SAVEMAP TWOND POSI TWOND POSF TWOND ;
+		LOOP ITCOORD 1 8;
+			RAYVECOUT(ITRAY,ITCOORD):=POSF(ITCOORD);
+		ENDLOOP;
+	ENDLOOP; 
+ENDPROCEDURE;
+
+
+PROCEDURE WRITER5VSINPUT II;
+	VARIABLE OUTPUT 8000;
+	VARIABLE TMP 1;
+	VARIABLE TMP2 1;
+	VARIABLE ITRAY 1;
+	VARIABLE ITCOORD 1;
+
+	LOOP ITRAY 1 NRAYVEC-1;
+		OUTPUT:='';
+		LOOP ITCOORD 1 6;
+			TMP:=RAYVECIN(ITRAY,ITCOORD);
+			IF ITCOORD#5;
+				OUTPUT:=OUTPUT&S(TMP)&' , ';
+			ENDIF;
+		ENDLOOP;
+
+		TMP2:=RAYVECOUT(ITRAY,5);
+		TMP:= 1e12*RAYVECOUT(ITRAY,5)*(2+cons(ETA))/(CONS(v0)*(1+cons(ETA)));
+		OUTPUT:=OUTPUT&S(TMP2)&' , '&S(TMP);
+		WRITE II OUTPUT;
+	ENDLOOP;
+ENDPROCEDURE;
+
+
+PROCEDURE compute_focal_plane;
+	CR;
+	define_characteristic_rays;
+
+	WRITE 6 '1111111111111111111111After CHARAY DE' DE;
+
+	MRST;
+
+	WRITE 6 '222222222222222222222After MRST DE' DE;
+
+	READ_RAY;
+
+	WRITE 6 '3333333333333333333333After READ_RAY DE' DE;
+
+	WV:=(MAXRAYVEC(1)-MINRAYVEC(1))/2;
+	WVY:=(MAXRAYVEC(3)-MINRAYVEC(3))/2;
+
+	AR MAP XX AX YY AY DE 0.000 100 RAR;
+	MRESOL_P1 := ABS(ME(1,6))/ABS(2*XX*ME(1,1));
+	gamma := 1 + CONS(ETA);
+	WVPOL:=(MAXRAYVEC(5)-MINRAYVEC(5));
+
+	WRITE 6 'WVPOL' WVPOL;
+
+	WRITE 6 'gamma' gamma;
+	WRITE 6 'CONS(v0)' CONS(v0);
+	WRITE 6 'RAYVECOUT(2,1)' RAYVECOUT(2,1);
+	WRITE 6 'RAYVECOUT(2,2)' RAYVECOUT(2,2);
+
+	time_min:= 1E12*MINRAYVEC(5)*(1+gamma)/(CONS(V0)*gamma);
+	time_max:= 1E12*MaxRAYVEC(5)*(1+gamma)/(CONS(V0)*gamma);
+	WRITE 6 'min. time/ps' time_min;
+	WRITE 6 'max. time/ps' time_max;
+	WRITE 6 'max - min_time' time_max-time_min;
+
+	WRITE 6 'RAY(5)' RAY(5);
+	WRITE 6 'RAYVECOUT(1,5)' RAYVECOUT(1,5);
+	WRITE 6 'RAYVECOUT(2,5)' RAYVECOUT(2,5);
+	WRITE 6 'RAYVECOUT(3,5)' RAYVECOUT(3,5);
+	WRITE 6 'MAXRAYVEC(5)' MAXRAYVEC(5);
+	WRITE 6 'MINRAYVEC(5)' MINRAYVEC(5);
+
+	WRITE 6 '444444444444444444444 Between RAY(1) and RAY(3) DE' DE;
+
+	WRITE 6 'RAY(3)' RAY(3);
+	WRITE 6 'RAYVECOUT(1,3)' RAYVECOUT(1,3);
+	WRITE 6 'RAYVECOUT(2,3)' RAYVECOUT(2,3);
+	WRITE 6 'RAYVECOUT(3,3)' RAYVECOUT(3,3);
+	WRITE 6 'MAXRAYVEC(3)' MAXRAYVEC(3);
+	WRITE 6 'MINRAYVEC(3)' MINRAYVEC(3);
+	WRITE 6 'WVY=Full-Y-SIZE' 2*WVY;
+
+	dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
+	denergy := ABS(E0*1000/MRESOL_P1);
+	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+	FPDESIGN(1) := FP_tilt;
+ENDPROCEDURE;
+
+
+{MAIN ROUTINE ************************************}
+
+E0 := 12.45;
+
+OV 3 3 0 ;
+WSET 1.0E-3; 
+
+PTY 40;
+
+RP E0 2.00001 1;       {E/MeV, Mass A, Charge z}
+
+{DEFINITIONS OF RESULTS ************************}
+RESDEF(1) := 'DE          ';
+RESDEF(2) := 'DE(MeV)     ';
+RESDEF(3) := 'V(m/s)      ';
+RESDEF(4) := 'dPath(m)    ';
+RESDEF(5) := 'Path(m)     ';
+RESDEF(6) := 'TOF(ps)     ';
+RESDEF(7) := 'dTOF(ps)    ';
+RESDEF(8) := 'z*(beam dir)';
+RESDEF(9) := 'Angle a(rad)';
+RESDEF(10) := 'z=z*cos(a)  ';
+RESDEF(11) := 'x(m)in FP   ';
+RESDEF(12) := 'x(m)in ISO  ';
+
+{DEFINITION OF DESIGN PARAMETERS ***********************}
+DESIGNDEF(1) := 'Tilt Angle(deg)       ';
+DESIGNDEF(2) := 'Curv.Radius(m)       ';
+DESIGNDEF(3) := 'p-dist(mm)         ';
+DESIGNDEF(4) := 'HO Resol.RAY(keV)       ';
+DESIGNDEF(5) := 'Time Resol.(ps)       ';
+DESIGNDEF(6) := 'y-Size(mm)         ';
+DESIGNDEF(7) := 'Plane Length(m)         ';
+
+UM;
+
+FR 0;  
+
+
+FLAG_HO := 0;
+
+{ENERGY LOOP *********************}
+WRITE 6 'E_LOOP_START*****************************';
+
+LOOP IENERGY 1 9;
+	WRITE 6 'i = ' IENERGY;
+	step_size := 0.14; {defines 9 energies, +/- 0.xxx}
+	
+	DE:= (-step_size)+(IENERGY-1)*step_size/4;
+	ISOR(1,IENERGY) := DE;
+	TKIN := 12.45*(1+DE);
+	ISOR(2,IENERGY) := TKIN;
+	VELOCITY;
+	ISOR(3,IENERGY) := VELOC;
+
+	WRITE 6 'TKIN = ' TKIN;
+	WRITE 6 'VELOC = ' VELOC;
+	
+	compute_focal_plane;
+
+	WRITE 6 'RAY(1) After 666666' RAY(1);
+
+	IF IENERGY=2;
+		PM 6;
+		PM 12;
+
+		WRITE 6 'TKIN = ' TKIN;
+		WRITE 6 'R12  = ' ME(1,2);
+		WRITE 6 'R34  = ' ME(3,4);
+	ENDIF;
+
+	WRITE 6 'MAXRAYVEC(5)' MAXRAYVEC(5);
+	WRITE 6 'MINRAYVEC(5)' MINRAYVEC(5);
+	ISOR(4,IENERGY) := (MAXRAYVEC(5)+MINRAYVEC(5))/2;
+	WRITE 6 'ISOR(4,i)' ISOR(4,IENERGY);
+	WRITE 6 'RAY(5)' RAY(5);
+
+	ISOR(9,IENERGY) := RAYVECOUT(2,2);
+	ISOR(11,IENERGY) := RAYVECOUT(2,1);
+
+	WRITE 6 'RAYVECOUT(2,2)' RAYVECOUT(2,2);
+	WRITE 6 'RAYVECOUT(2,1)' RAYVECOUT(2,1);
+	WRITE 6 'E_LOOP_END*****************************'; 
+ENDLOOP;
+
+{Now run only central energy with rays within acceptance ************}
+
+DE := 1/12.45; {vary DE}
+
+FLAG_HO := 1;
+compute_focal_plane;
+
+WRITE 6 '77777777777777777777777 After DE_ALONG DE' DE;
+{End central energy only ********************}
+
+{Calculate y-size = 2*WVY for central energ DE = 0.143 set} 
+compute_focal_plane;
+
+ISODESIGN(6) := 2*WVY*1000;
+FPDESIGN(6) := 2*WVY*1000;
+
+CR; 
+UM; 
+DEFINE_CHARACTERISTIC_RAYS;
+MRSt;
+
+FPDESIGN(4) := E0*1000/(ABS(ME(1,6))/(2*WV));
+FPDESIGN(5) := dtime;
+
+WRITE 6 'E0 (MeV) = ' E0;
+
+deltaE := 1e3*E0*DE;
+WRITE 6 'DE (keV) =' deltaE;
+
+deltaX := 1e3*ME(1,6)*DE;   {ME(1,6) given in meters; ratio of the dev. (E - E0)/E0}
+WRITE 6 'dX (mm) =' deltaX;
+
+WRITE 6 'dE/dX (keV/mm) =' deltaE/deltaX;
+
+imageX := 1e3*ME(1,1)*XX;
+WRITE 6 'Image width (mm) =' imageX;
+
+imageE := imageX*deltaE/deltaX;
+WRITE 6 'Image width (keV) =' imageE;
+
+WRITE 6 'ME(5,2) =' ME(5,2);
+
+MRESOL_P1 := ABS(ME(1,6))/ABS(2*XX*ME(1,1));
+FP_radius := ME(1,6)^2/(ME(1,1)*ME(1,266));
+
+WRITE 6 '1st-order resolving power' abs(MRESOL_P1);
+WRITE 6 '1st-order resolution (keV)' abs(E0*1000/MRESOL_P1);
+CRDESIGN(2) := ABS(E0*1000/MRESOL_P1);
+
+WRITE 6 'Half-image width, WV (mm)' 1e3*WV;
+WRITE 6 'Vert. Half-image width, WVY (mm)' 1e3*WVY;
+
+WRITE 6 'HO resolving power using RAY' ABS(ME(1,6))/(2*WV);
+WRITE 6 'HO resolving power using AR' RAR;
+WRITE 6 'HO resolution using AR (keV)' E0*1000/RAR;
+WRITE 6 'HO resolution using RAY (keV)' E0*1000/(ABS(ME(1,6))/(2*WV));
+
+dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
+WRITE 6 'Time difference (ps)' dtime;
+WRITE 6 'Path-length difference (mm)' 1e-9*dtime*CONS(v0);
+WRITE 6 'FP Tilt/deg' atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+WRITE 6 'Focal plane curvature radius' FP_radius;
+WRITE 6 'ME(1,266)' ME(1,266);
+
+LC := SPOS;
+
+WRITE 6 'Length Central Ray = ' SPOS;
+
+WRITE 6 'SPOS=Length Central Ray' SPOS;
+
+ISOR(5,5) := LC;
+ISOR(5,1) := LC-ISOR(4,1);
+ISOR(5,2) := LC-ISOR(4,2);
+ISOR(5,3) := LC-ISOR(4,3);
+ISOR(5,4) := LC-ISOR(4,4);
+ISOR(5,6) := LC-ISOR(4,6);
+ISOR(5,7) := LC-ISOR(4,7);
+ISOR(5,8) := LC-ISOR(4,8);
+ISOR(5,9) := LC-ISOR(4,9);
+
+write 6 'isor(5,3)' isor(5,3);
+write 6 'isor(1,3)' isor(1,3);
+
+write 6 'isor(5,1)' isor(5,1);
+write 6 'isor(1,1)' isor(1,1);
+
+LOOP K 1 9;
+	ISOR(6,K) := 1E12*ISOR(5,K)/ISOR(3,K);
+ENDLOOP;
+
+LOOP K 1 9;
+	ISOR(7,K) := ISOR(6,K) -ISOR(6,5);
+ENDLOOP;
+
+LOOP K 1 9;
+	ISOR(8,K) := -ISOR(7,K)*ISOR(3,K)/1E12;
+ENDLOOP;
+
+LOOP K 1 9;
+	ISOR(10,K):=ISOR(8,K)*COS(ISOR(9,K));
+ENDLOOP;
+
+LOOP K 1 9;
+	ISOR(12,K):=ISOR(11,K)+ISOR(8,K)*SIN(ISOR(9,K));
+ENDLOOP;
+
+WRITE 6 'Time Central Ray (ps)' 1e12*SPOS/CONS(v0);
+
+LOOP M 1 12;
+	LOOP N 1 {3}9;
+		WRITE 6 'M N'&SF(M,'(I2.1)')&SF(N,'(I2.1)')&' ISOR '&RESDEF(M)&SF(ISOR(M,N),'(F16.5)');
+	ENDLOOP;
+ENDLOOP;
+
+{***************Set identical ISOR and FOPR parameters}
+N := 2;
+LOOP M 1 12;
+	FOPR(M,N) := ISOR(M,N);
+ENDLOOP;
+
+FOPR(1,1) := ISOR(1,1);
+FOPR(1,3) := ISOR(1,3);
+FOPR(2,1) := ISOR(2,1);
+FOPR(2,3) := ISOR(2,3);
+FOPR(3,1) := ISOR(3,1);
+FOPR(3,3) := ISOR(3,3);
+
+{FP length FPDESIGN(7) calculated as follows *************}
+FOPR(12,1) := ME(1,6)*-0.143;
+FOPR(12,3) := ME(1,6)*0.143;
+FOPR(10,1) := FOPR(12,1)*TAN(FPDESIGN(1)*PI/180);
+FOPR(10,3) := FOPR(12,3)*TAN(FPDESIGN(1)*PI/180);
+FPDESIGN(7) := SQRT((FOPR(10,1)-FOPR(10,3))^2+(FOPR(12,1)-FOPR(12,3))^2);
+
+WRITE 6 '***************************';
+
+LOOP M 1 12;
+	LOOP N 1 3;
+		WRITE 6 'M N'&SF(M,'(I2.1)')&SF(N,'(I2.1)')&' FOPR '&RESDEF(M)&SF(FOPR(M,N),'(F16.5)');
+	ENDLOOP;
+ENDLOOP;
+
+Z1 := ISOR(10,1);
+Z2 := ISOR(10,3);
+X1 := ISOR(12,1);
+X2 := ISOR(12,3);
+WRITE 6 'Z1' Z1;
+WRITE 6 'Z2' Z2;
+WRITE 6 'X1' X1;
+WRITE 6 'X2' X2;
+
+WRITE 6 '*****************************'; 
+A_COEFF := X2-X1;
+B_COEFF := Z2-Z1;
+C_COEFF := A_COEFF*Z1-B_COEFF*X1;
+P_DIST := +C_COEFF/SQRT(A_COEFF^2+B_COEFF^2);
+DESIGN(4) := P_DIST;
+ISODESIGN(3) := 1000*P_DIST;
+WRITE 6 'A,B,C' A_COEFF B_COEFF C_COEFF;
+ISODESIGN(1) := 90+ATAN(-A_COEFF/B_COEFF)*180/PI;
+
+ISODESIGN(4) := FPDESIGN(4);
+ISODESIGN(5) := FPDESIGN(5);
+
+WRITE 6 'CENTRAL ENERGY (MeV) = 12.45';
+WRITE 6 'CRDESIGN(1)' CRDESIGN(1);
+
+WRITE 6 'N'&SF(1,'(I2.1)')&' CRDESIGN '&'Resolving Power'&SF(CRDESIGN(1),'(F16.5)');
+WRITE 6 'N'&SF(2,'(I2.1)')&' CRDESIGN '&'Resolution(keV)'&SF(CRDESIGN(2),'(F16.5)');
+
+{Calc. p-dist with temporary fixed length of FP = 0.67375 m}
+
+FPDESIGN(3) := 1000*(FPDESIGN(2)- SQRT(FPDESIGN(2)*FPDESIGN(2)-0.25*FPDESIGN(7)^2));
+IF FPDESIGN(2)<0; 
+	FPDESIGN(3) := -1000*(FPDESIGN(3)/1000-2*FPDESIGN(2)); 
+ENDIF;
+
+ISODESIGN(7) := SQRT((ISOR(10,1)-ISOR(10,3))^2+(ISOR(12,1)-ISOR(12,3))^2);
+ISODESIGN(2) := ISODESIGN(7)^2/(8*ISODESIGN(3)/1000)+ISODESIGN(3)/2000;
+
+WRITE 6 '*****************************'; 
+
+LOOP N 1 7;
+	WRITE 6 'N'&SF(N,'(I2.1)')&' FPDESIGN '&DESIGNDEF(N)&SF(FPDESIGN(N),'(F16.5)');
+ENDLOOP;
+WRITE 6 '*****************************'; 
+LOOP N 1 7;
+	WRITE 6 'N'&SF(N,'(I2.1)')&' ISODESIGN '&DESIGNDEF(N)&SF(ISODESIGN(N),'(F16.5)');
+ENDLOOP;
+
+WRITE 6 'Start FP calculations*******************************';
+
+UM;
+DE := 0; {Change DE(%) to calc **** FP params}
+
+FLAG_HO := 1;  {Central rays only within acceptances}
+
+CR;
+define_characteristic_rays;
+BP;
+MRSt;
+{GRZOOM -1 -1 -1 1 1 1;}
+EP;
+READ_RAY;
+WRITE 6 'RAY(1) After READ_RAY' RAY(1);
+WRITE 6 'MAXRAYVEC(1)' MAXRAYVEC(1);
+WRITE 6 'MINRAYVEC(1)' MINRAYVEC(1);
+
+WV := (MAXRAYVEC(1)-MINRAYVEC(1))/2;
+WRITE 6 'HALF X-SIZE' WV;
+
+PG -1 -2; {on GRAPHICS screen}
+PP -13 0. 0.; {pic001.ps}
+PP -13 0. 90.; {pic002.ps}
+
+WRITE 6 RAY(3);
+WRITE 6 'MAXRAYVEC(3)' MAXRAYVEC(3);
+WRITE 6 'MINRAYVEC(3)' MINRAYVEC(3);
+
+WVY := (MAXRAYVEC(3)-MINRAYVEC(3));
+WRITE 6 '****Full-Y-SIZE/mm' WVY*1000;
+
+WRITE 6 'RAY(5)' RAY(5);
+WRITE 6 'MAXRAYVEC(5)' MAXRAYVEC(5);
+WRITE 6 'MINRAYVEC(5)' MINRAYVEC(5);
+
+gamma := 1 + CONS(ETA);
+WVPOL:=(MAXRAYVEC(5)-MINRAYVEC(5));
+
+WRITE 6 'WVPOL' WVPOL;
+
+WRITE 6 'gamma' gamma;
+WRITE 6 'CONS(v0)' CONS(v0);
+dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
+WRITE 6 ' ' ;
+WRITE 6 '********************' ;
+WRITE 6 '****DE' DE;
+WRITE 6 '****DE/MeV' TKIN;
+WRITE 6 '****x/m =' (MAXRAYVEC(1)+MINRAYVEC(1))/2;
+WRITE 6 '****HO Resol. by RAY(keV)' E0*1000/(ABS(ME(1,6))/(2*WV));
+WRITE 6 '****dtime' ABS(dtime);
+WRITE 6 '****Full-Y-SIZE/mm' WVY*1000;
+WRITE 6 '********************' ;
+WRITE 6 ' ' ;
+
+WRITE 6 'dx/mm:=' 1000*ABS(MAXRAYVEC(1)-MINRAYVEC(1));
+WRITE 6 'FP Tilt/deg' atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+WRITE 6 'FP Tilt/rad' atan(-ME(1,26)/ME(2,2)/ME(1,6));
+WRITE 6 'FP COS(Tilt/rad)' COS(atan(-ME(1,26)/ME(2,2)/ME(1,6)));
+
+WRITE 6 'dz/mm:=' 1000*ABS(MAXRAYVEC(1)-MINRAYVEC(1))/COS(atan(-ME(1,26)/ME(2,2)/ME(1,6)));
+
+WRITE 6 'R12' ME(1,2);
+WRITE 6 'R34' ME(3,4);
+
+WRITE 11 'ISOR(1,N) ISOR(2,N)   ISOR(3,N)   ISOR(4,N)  ISOR(5,N)   ISOR(6,N)     ISOR(7,N)
+   ISOR(8,N) ISOR(9,N) ISOR(10,N)  ISOR(11,N)  ISOR(12,N)';
+WRITE 11 '   DE       E/MeV        v(m/s)    d_path/m    path/m    TOF/ps        dTOF/ps
+      z^prime    a/rad      z/m        x/m     x/m@IsoPlane';
+LOOP M 1 9;
+	M := 10-M;
+	WRITE 11 ''&SF(ISOR(1,M),'(F7.3)')&SF(ISOR(2,M),'(F10.5)')&SF(ISOR(3,M),'(F16.5)')&SF(ISOR(4,M),
+	'(F10.5)')&SF(ISOR(5,M),'(F10.5)')&SF(ISOR(6,M),'(F14.5)')&SF(ISOR(7,M),'(F14.5)')&SF(ISOR(8,M),
+	'(F10.5)')&SF(ISOR(9,M),'(F10.5)')&SF(ISOR(10,M),'(F12.5)')&SF(ISOR(11,M),'(F11.5)')&SF(ISOR(12,M),
+	'(F12.5)');
+ENDLOOP;
+WRITE 11 'TILT ANGLE' FPDESIGN(1);
+
+COMPUTE_FOCAL_PLANE_CURVE;
+
+PM 6;
+
+ENDPROCEDURE;
+RUN ;
+END ;

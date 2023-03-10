@@ -1,0 +1,21 @@
+# COSY beam physics installation
+*.bin
+*.dat
+
+# compiled COSY code
+*.lis
+
+# COSY outputs
+*.pdf
+*.ps
+*.svg
+*.log
+*.out
+fort.*
+
+# compiled Python
+*.pyc
+
+# Python outputs
+*.png
+*.pkl

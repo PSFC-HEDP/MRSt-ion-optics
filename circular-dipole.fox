@@ -1,0 +1,73 @@
+INCLUDE 'COSY';
+PROCEDURE RUN;
+
+	VARIABLE field_shape_coefs 1 6;
+	VARIABLE entrance_coefs 1 6;
+	VARIABLE eXit_coefs 1 6;
+	VARIABLE R 1;
+	VARIABLE theta 1;
+	VARIABLE solenoid_radius 1;
+	VARIABLE W_APERTURE 1;
+	VARIABLE B 1;
+	R := 0.0688;
+	theta := 15;
+	solenoid_radius := 0.0045;
+	W_APERTURE := 0.009;
+	
+	{set the dipole field to parabolic}
+	field_shape_coefs(1) := 0;
+	field_shape_coefs(2) := -0.163*R^2/solenoid_radius^2;
+	field_shape_coefs(3) := 0;
+	field_shape_coefs(4) := 0;
+	field_shape_coefs(5) := 0;
+	field_shape_coefs(6) := 0;
+
+	{set the shape of the dipole to circular}
+	entrance_coefs(1) := 0;
+	entrance_coefs(2) := 1/2/solenoid_radius;
+	entrance_coefs(3) := 0;
+	entrance_coefs(4) := 1/8/solenoid_radius^3;
+	entrance_coefs(5) := 0;
+	entrance_coefs(6) := 1/16/solenoid_radius^5;
+	exit_coefs(1) := 0;
+	exit_coefs(2) := 1/2/solenoid_radius;
+	exit_coefs(3) := 0;
+	exit_coefs(4) := 1/8/solenoid_radius^3;
+	exit_coefs(5) := 0;
+	exit_coefs(6) := 1/16/solenoid_radius^5;
+
+	OV 3 3 0 ;
+	WSET 1.0E-3; 
+	RP 12.45 2.00001 1;       {E/MeV, Mass A, Charge z}
+
+	UM;
+	CR;
+
+	SR 0 -1/300 0 0 0 -1/12.45 0 0 2;
+	SR 0 -1/300 0 0 0  0       0 0 3;
+	SR 0 -1/300 0 0 0  1/12.45 0 0 8;
+	SR 0      0 0 0 0 -1/12.45 0 0 2;
+	SR 0      0 0 0 0  0       0 0 3;
+	SR 0      0 0 0 0  1/12.45 0 0 8;
+	SR 0  1/300 0 0 0 -1/12.45 0 0 2;
+	SR 0  1/300 0 0 0  0       0 0 3;
+	SR 0  1/300 0 0 0  1/12.45 0 0 8;
+
+	BP;
+
+	DL 0.30;
+
+	MC R theta .0045 FIELD_SHAPE_COEFS ENTRANCE_COEFS EXIT_COEFS 6;
+
+	DL 0.34;
+
+	EP;
+
+	PG -1 -2;
+
+	PM 6;
+
+ENDPROCEDURE;
+
+RUN;
+END;

@@ -1,0 +1,430 @@
+INCLUDE 'COSY' ;
+PROCEDURE RUN ;
+
+{Johan Frenje}
+
+{VARIABLES FOR SYSTEM***********************************}
+
+VARIABLE B1N 1 5;     {dipole1 B-field index}
+
+VARIABLE B1S1 1 5;   {dipole entrance-edge curvature}
+VARIABLE B1S2 1 5;   {dipole exit-edge curvature}
+
+VARIABLE S0 1;       {source-to-quadrupole dist}
+VARIABLE S1 1;       {quadrupole-to-octupole dist}
+VARIABLE S2 1;       {quadrupole-to-octupole dist}
+VARIABLE S3 1;       {quadrupole-to-octupole dist}
+
+VARIABLE u1 1;       {dipole entrance angle}
+VARIABLE u2 1;       {dipole exit angle}
+
+VARIABLE AQ 1;       {octupole field}
+VARIABLE AH 1;       {octupole field gradient}
+VARIABLE AO 1;       {octupole field gradient}
+
+VARIABLE BQ 1;       {octupole field}
+VARIABLE BH 1;       {octupole field gradient}
+VARIABLE BO 1;       {octupole field gradient}
+
+VARIABLE B1 1;       {dipole B field}
+VARIABLE n1 1;       {dipole B-field index}
+
+VARIABLE Theta1 1;   {dipole bending angle}
+
+VARIABLE R1 1;       {dipole bending radius for 14-MeV p}
+VARIABLE Gap 1;      {dipole half gap}
+
+VARIABLE DE 1;       {spectrometer energey spread}
+VARIABLE DA 1;       {emission angle spread in x}
+VARIABLE DB 1;       {emission angle spread in y}
+
+{START VARIABLES FOR RAY DEFINITION*********************}
+
+VARIABLE XX 1;       {Source size in X}
+VARIABLE AX 1;       {Half-emission angle in X-Z (bending) plane}
+VARIABLE YY 1;       {Source size in Y}
+VARIABLE AY 1;       {Half-emission angle in Y-Z (non-bending) plane}
+
+VARIABLE EP 1;       {proton energy}
+VARIABLE MRESOL_P1 1;{1st-order resolving power}
+VARIABLE HO_RES 1;   {HO energy resolution}
+VARIABLE gamma 1;    {used for r5 scaling}
+VARIABLE dtime 1;    {time resolution}
+VARIABLE denergy 1;  {energy resolution}
+
+{START VARIABLES FOR READ RAY***************************}
+
+VARIABLE WV 1;       {HO half-width signal distri at FP}
+VARIABLE CENTER 1;   {center of HO signal distri at FP}
+VARIABLE NMAX 1;     {max number of iterations}
+VARIABLE LC 1;       {Length of central ray}
+
+VARIABLE WVPOL 1;       {POLVAL EQUIVALENT TO WV}
+
+{VARIABLES FOR FIT_FP **********************************}
+
+VARIABLE NSTEP 1;
+
+VARIABLE H01 1;     {param. used in fit for d1 entrance-edge curv.}
+VARIABLE H02 1;     {param. used in fit for d1 exit-edge curv.}
+
+VARIABLE G01 1;     {param. used in fit for d1 entrance-edge curv.}
+VARIABLE G02 1;     {param. used in fit for d1 exit-edge curv.}
+
+VARIABLE OBJ 1;
+VARIABLE TEMP 1;
+VARIABLE RAR 1;     {Resolution using AR}
+
+
+VARIABLE RAYVECIN 1 11000 8;
+VARIABLE RAYVECOUT 1 11000 8;
+
+VARIABLE NRAYVEC 1;
+
+{MRSt geometrical Layout *******************************}
+PROCEDURE MRSt;
+
+B1N(1) := n1;
+
+B1S1(1) := TAN(u1*3.14159265359/180);
+B1S2(1) := TAN(u2*3.14159265359/180);
+
+B1S1(2) := H01;
+B1S2(2) := H02;
+
+B1S1(3) := G01;
+B1S2(3) := G02;
+
+BP;
+PS 0.001 ;
+DL S0;
+{M5 0.1 AQ AH 0.0 0.0 0.0 0.04;
+DL S1;}
+MC R1 Theta1 0.04 B1N B1S1 B1S2 5;
+DL S2;
+M5 0.1 BQ BH 0.0 0.0 0.0 0.15;
+DL S3;
+PS 0.1;
+
+LC := SPOS;
+{WRITE 6 'SPOS=Length Central Ray' SPOS;}
+WRITE 6 'ME(1,1)=' ME(1,1);
+WRITE 6 'ME(1,2)=' ME(1,2);
+WRITE 6 'ME(1,1)=' ME(5,1);
+WRITE 6 'ME(1,2)=' ME(5,2);
+MRESOL_P1 := ABS(ME(1,6))/(2*XX*ME(1,1));
+WRITE 6 '1st-order resolving power' MRESOL_P1;
+dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
+WRITE 6 'dt (ps)' dtime;
+WRITE 6 'dL (mm)' 1e-9*dtime*CONS(v0);
+WRITE 6 'FP Tilt/deg' atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+EP;
+ENDPROCEDURE;
+
+{DEFINE CHARACTERISTIC RAYS *************************}
+PROCEDURE CHARAY;
+VARIABLE IT_RAY 1;
+VARIABLE IT_COORD 1;
+VARIABLE TMP 1;
+
+{Define 5 target/spectr. entrance parameters}
+XX := 0.0;
+AX := 0.01;
+YY := 0.0;
+AY := 0.01;
+DE:= 0.2{0.67};
+
+CR 
+{Clears all rays};
+UM;
+
+SR 0 AX 0 0 0 0 0 0 2;
+SR 0 0.5*AX 0 0 0 0 0 0 2;
+SR 0 0 0 0 0 0 0 0 2;
+SR 0 -0.5*AX 0 0 0 0 0 0 2;
+SR 0 -AX 0 0 0 0 0 0 2;
+
+{SR 0 0 0 AY 0 0 0 0 2;}
+SR 0 0 0 0.5*AY 0 0 0 0 2;
+SR 0 0 0 -0.5*AY 0 0 0 0 2;
+{SR 0 0 0 -AY 0 0 0 0 3;}
+
+
+SR 0 AX 0 0 0 DE 0 0 3;
+SR 0 0.5*AX 0 0 0 DE 0 0 3;
+SR 0 0 0 0 0 DE 0 0 3;
+SR 0 -0.5*AX 0 0 0 DE 0 0 3;
+SR 0 -AX 0 0 0 DE 0 0 3;
+
+{SR 0 0 0 AY 0 DE 0 0 3;}
+SR 0 0 0 0.5*AY 0 DE 0 0 3;
+SR 0 0 0 -0.5*AY 0 DE 0 0 3;
+{SR 0 0 0 -AY 0 DE 0 0 3;}
+
+SR 0 AX 0 0 0 -DE 0 0 5;
+SR 0 0.5*AX 0 0 0 -DE 0 0 5;
+SR 0 0 0 0 0 -DE 0 0 5;  {red}
+SR 0 -0.5*AX 0 0 0 -DE 0 0 5;
+SR 0 -AX 0 0 0 -DE 0 0 5;
+
+{SR 0 0 0 AY 0 -DE 0 0 5;}
+SR 0 0 0 0.5*AY 0 -DE 0 0 5;
+SR 0 0 0 -0.5*AY 0 -DE 0 0 5;
+{SR 0 0 0 -AY 0 -DE 0 0 5;}
+
+NRAYVEC:=1;
+LOOP IT_RAY 1 NRAY;
+LOOP IT_COORD 1 8;
+ VELGET RAY(IT_COORD) IT_RAY TMP; RAYVECIN(NRAYVEC,IT_COORD):=TMP;
+ENDLOOP;
+ NRAYVEC:=NRAYVEC+1;
+ENDLOOP;
+
+ENDPROCEDURE;
+
+{PROCEDURE READ_RAY ***************************}
+PROCEDURE READ_RAY;
+VARIABLE ITRAY 1;
+VARIABLE ITCOORD 1;
+VARIABLE POSI 1 8;
+VARIABLE POSF 1 8;
+VARIABLE SAVEMAP 10000 8;
+
+SM SAVEMAP;
+CHARAY;
+AM SAVEMAP;
+
+LOOP ITRAY 1 NRAYVEC-1;
+   LOOP ITCOORD 1 8;
+    POSI(ITCOORD):=RAYVECIN(ITRAY,ITCOORD);
+   ENDLOOP;
+   POLVAL 1 SAVEMAP TWOND POSI TWOND POSF TWOND ;
+   LOOP ITCOORD 1 8;
+     RAYVECOUT(ITRAY,ITCOORD):=POSF(ITCOORD);
+   ENDLOOP;
+ENDLOOP; 
+ENDPROCEDURE;
+
+
+FUNCTION MAXRAYVEC I;
+{RETURNS THE MAXIMUM OF THE Ith COORDINATE OF RAYVEC}
+VARIABLE ITRAY 1;
+
+MAXRAYVEC:=-1E10;
+LOOP ITRAY 1 NRAYVEC-1;
+ IF RAYVECOUT(ITRAY,I)>MAXRAYVEC; MAXRAYVEC:=RAYVECOUT(ITRAY,I); ENDIF;
+ENDLOOP;
+ENDFUNCTION;
+
+FUNCTION MINRAYVEC I;
+{RETURNS THE MINIMUM OF THE Ith COORDINATE OF RAYVEC}
+VARIABLE ITRAY 1;
+MINRAYVEC:=1E10;
+LOOP ITRAY 1 NRAYVEC-1;
+ IF RAYVECOUT(ITRAY,I)<MINRAYVEC; MINRAYVEC:=RAYVECOUT(ITRAY,I); ENDIF;
+ENDLOOP;
+
+ENDFUNCTION;
+
+PROCEDURE WRITER5VSINPUT II;
+
+VARIABLE OUTPUT 8000;
+VARIABLE TMP 1;
+VARIABLE TMP2 1;
+VARIABLE ITRAY 1;
+VARIABLE ITCOORD 1;
+
+LOOP ITRAY 1 NRAYVEC-1;
+   OUTPUT:='';
+   LOOP ITCOORD 1 6;
+    TMP:=RAYVECIN(ITRAY,ITCOORD);
+    IF ITCOORD#5; OUTPUT:=OUTPUT&S(TMP)&' , '; ENDIF;
+   ENDLOOP;
+   
+   TMP2:=RAYVECOUT(ITRAY,5);
+   TMP:= 1e12*RAYVECOUT(ITRAY,5)*(2+cons(ETA))/(CONS(v0)*(1+cons(ETA)));
+   OUTPUT:=OUTPUT&S(TMP2)&' , '&S(TMP);
+   WRITE II OUTPUT;
+ENDLOOP;
+ENDPROCEDURE;
+
+{PROCEDURE FIT_FP *****************************}
+PROCEDURE FIT_FP;
+
+n1 := B1N(1);
+
+H01 := B1S1(2);
+H02 := B1S2(2);
+
+G01 := B1S1(3);
+G02 := B1S2(3);
+
+u1 := 180*ATAN(B1S1(1))/3.14159265359;
+u2 := 180*ATAN(B1S2(1))/3.14159265359;
+
+NSTEP := 0;
+FIT H01;
+{FIT {AQ BQ R1} Theta1 {S0 S1 S2};}
+
+R1 := ABS(R1);
+
+CR;
+CHARAY;
+BP;
+MRST;
+EP;
+
+READ_RAY;
+
+WV:=(VMAX(RAY(1))-VMIN(RAY(1)))/2;
+AR MAP XX AX YY AY DE 0.000 100 RAR;
+MRESOL_P1 := ABS(ME(1,6))/(2*XX*ME(1,1));
+gamma := 1 + CONS(ETA);
+WVPOL:=(MAXRAYVEC(5)-MINRAYVEC(5));
+dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
+denergy := ABS(EP*1000/MRESOL_P1);
+
+{OBJ := RAR;}
+{OBJ := WV;}
+{OBJ := RAR;}
+{OBJ := ABS(ME(5,2));}
+OBJ := WV;
+{OBJ := ABS(ME(1,2));}
+
+{OBJ := ABS(ME(1,26));}
+
+WRITE 6 'dtime' ABS(dtime);
+WRITE 6 'denergy' ABS(denergy);
+WRITE 6 'ME(1,2)' ABS(ME(1,2));
+WRITE 6 'OBJ =' OBJ;
+NSTEP := NSTEP+1;
+WRITE 6 'FIT_FP ITERATION STEP' NSTEP;
+ENDFIT 1e-9 400{0} 1{2}{3} OBJ;
+{ENDFIT &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&}
+
+
+B1N(1) := n1;
+
+B1S1(2) := H01;
+B1S2(2) := H02;
+
+B1S1(3) := G01;
+B1S2(3) := G02;
+
+WRITE 6 'B1N(1)' n1;
+WRITE 6 'B1S1(2)' H01;
+WRITE 6 'B1S2(2)' H02;
+
+WRITE 6 'B1S1(3)' G01;
+WRITE 6 'B1S2(3)' G02;
+
+ENDPROCEDURE;
+
+{MAIN ROUTINE ************************************}
+
+OV 3{1} 3 3 ;
+WSET 1.5E-3; 
+EP := 14.0;
+RP EP {2.0135532127}1.00001 1;       {E/MeV, Mass A, Charge q}
+UM;
+
+FR 2;
+
+S0 := 2.25;
+S1 := 0.1;
+S2 := 0.2;
+S3 := 1.0;
+
+u1 := 0.0;
+Theta1 := 33.56202110952975;
+n1 := 0.0;
+u2 := 0.0;
+
+
+Gap := 0.01;
+
+R1 := 0.5;
+
+AQ := 0.0;
+AH := 0.0;
+
+BQ := 0.0;
+BH := 0.6185614953934718;
+
+B1N(1) := n1;
+
+B1S1(1) := TAN(u1*3.14159265359/180);
+B1S2(1) := TAN(u2*3.14159265359/180);
+
+B1S1(2) := 0.0;
+B1S2(2) := 0.0;
+
+B1S1(3) :=  0.0;
+B1S2(3) :=  0.0;
+
+B1N(1) := n1;
+
+FIT_FP;
+
+{PTY 1;}
+CR; 
+UM; 
+CHARAY;
+
+{BP;} 
+MRSt;
+{EP;}
+
+PG -1 -2; {on GRAPHICS screen}
+PP -10 0. 0.; {pic001.ps}
+PP -10 0. 90.; {pic002.ps}
+
+WRITE 6 'u1 =' u1;
+WRITE 6 'u2 =' u2;
+
+WRITE 6 'S0 =' S0;
+WRITE 6 'S1 =' S1;
+WRITE 6 'S2 =' S2;
+WRITE 6 'S3 =' S3;
+
+WRITE 6 'R1 =' R1;
+WRITE 6 'Theta1 =' Theta1;
+
+WRITE 6 'H01 =' H01;
+WRITE 6 'H02 =' H02;
+
+WRITE 6 'AQ =' AQ;
+WRITE 6 'AH =' AH;
+
+WRITE 6 'BQ =' BQ;
+WRITE 6 'BH =' BH;
+
+MRESOL_P1 := ABS(ME(1,6))/(2*XX*ME(1,1));
+
+WRITE 6 '1st-order resolving power' MRESOL_P1;
+WRITE 6 '1st-order resolution (keV)' EP*1000/MRESOL_P1;
+WRITE 6 'Half-image width, WV (um), req = 40 um' 1e6*WV;
+WRITE 6 'HO resolving power using RAY' ABS(ME(1,6))/(2*WV);
+WRITE 6 'HO resolving power using AR' RAR;
+WRITE 6 'HO resolution using RAY (keV)' EP*1000/(ABS(ME(1,6))/(2*WV));
+WRITE 6 'HO resolution using AR (keV)' EP*1000/RAR;
+dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
+WRITE 6 'Time difference (ps)' dtime;
+WRITE 6 'Path-length difference (mm)' 1e-9*dtime*CONS(v0);
+WRITE 6 'FP Tilt/deg' atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+WRITE 6 'Focal plance curvature radius' R;
+
+LC := SPOS;
+WRITE 6 'SPOS=Length Central Ray' SPOS;
+WRITE 6 'Time Central Ray (ps)' 1e12*SPOS/CONS(v0);
+
+WRITE 6 'FP Tilt/deg' atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+
+{PM 6;}
+
+ENDPROCEDURE;
+RUN ;
+END ;
+{*********************************}
+
+

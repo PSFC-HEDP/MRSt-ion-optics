@@ -1,0 +1,45 @@
+INCLUDE 'COSY';
+
+PROCEDURE set_rays;
+	VARIABLE a 1;
+	VARIABLE b 1;
+
+	CR; {clear rays}
+	LOOP a -.01 .01 .01;
+		LOOP b -.01 .01 .01;
+			SR 0 a 0 b 0 0 0 0 5; {set the rays}
+		ENDLOOP;
+	ENDLOOP;
+	SB 0 .01 0 0 .01 0 0 .01 0 0 0; {set the beam dimensions}
+ENDPROCEDURE;
+
+PROCEDURE define_geometry;
+	DL .50; {drift of length 50 cm}
+	DP .10 30 .01; {magnetic dipole, 10 cm radius, 30 degrees, 1 cm aperture}
+	DL .50; { drift of length 50 cm}
+	PS .01; {poincare section (but it's actually just a line)}
+ENDPROCEDURE;
+
+PROCEDURE main;
+	OV 5 3 0; {5th order, 3d phase space, 0 parameters}
+	RP 15 1 1; {kinetic energy 15MeV, mass 1 Da, charge 1 e}
+	FR 3; {fringe field mode 3 (enge function)}
+	UM; {set the map to unity}
+
+	set_rays;
+
+	PTY 10; {set picture type to true-scale}
+	BP; {begin picture}
+
+	define_geometry;
+
+	EP; {end picture}
+	PG -1 -2; {show the picture from the x and y directions with an envelope (windows 1 and 2)}
+
+	PM 6; {prints the map to the console}
+
+ENDPROCEDURE;
+
+main;
+
+END;

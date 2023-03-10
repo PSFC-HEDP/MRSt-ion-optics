@@ -1,0 +1,30 @@
+The tolerance on the length of hexapole 1 is ±0.1 cm
+The tolerance on the length of the octupole is ±0.1 cm
+The tolerance on the length of hexapole 2 is ±0.1 cm
+The tolerance on the shiftz of hexapole 1 is ±0.5 cm
+The tolerance on the shiftz of the octupole is ±0.5 cm
+The tolerance on the shiftz of hexapole 2 is ±0.5 cm
+The tolerance on the shiftx of hexapole 1 is ±0.02 cm
+The tolerance on the shiftx of the octupole is ±0.02 cm
+The tolerance on the shiftx of hexapole 2 is ±0.02 cm
+The tolerance on the shifty of hexapole 1 is ±0.02 cm
+The tolerance on the shifty of the octupole is ±0.02 cm
+The tolerance on the shifty of hexapole 2 is ±0.02 cm
+The tolerance on the tiltx of hexapole 1 is ±0.1 degrees
+The tolerance on the tiltx of the octupole is ±0.1 degrees
+The tolerance on the tiltx of hexapole 2 is ±0.1 degrees
+The tolerance on the tilty of hexapole 1 is ±0.1 degrees
+The tolerance on the tilty of the octupole is ±0.1 degrees
+The tolerance on the tilty of hexapole 2 is ±0.1 degrees
+The tolerance on the strength of quadrupole 1 is ±0.5 %
+The tolerance on the strength of hexapole 1 is ±0.5 %
+The tolerance on the strength of the octupole is ±0.5 %
+The tolerance on the strength of quadrupole 2 is ±0.5 %
+The tolerance on the strength of hexapole 2 is ±0.5 %
+
+The HO Resol.RAY(keV) range is 1.89418 < 1.91984 < 1.94545
+The Time Resol.(ps) range is 45.92893 < 46.08921 < 46.24866
+The y-Size(mm) range is 6.20746 < 6.30757 < 6.39625
+The Plane Length(m) range is 0.33519 < 0.34087 < 0.34658
+The Tilt Angle(deg) range is 66.2099 < 66.58565 < 66.94654
+The p-dist(mm) range is -0.61994 < -0.0007 < 0.57506

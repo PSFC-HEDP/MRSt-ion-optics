@@ -1,0 +1,100 @@
+INCLUDE 'COSY';
+
+PROCEDURE run;
+
+	VARIABLE central_energy 1;
+
+	VARIABLE focalplane_angle 1;
+	VARIABLE focalplane_curvature 1;
+	VARIABLE isochronous_angle 1;
+	VARIABLE dispersion 1;
+
+	PROCEDURE set_rays;
+		VARIABLE a 1;
+		VARIABLE b 1;
+
+		CR; {clear rays}
+		LOOP a -.01 .01 .01;
+			LOOP b -.01 .01 .01;
+				SR 0 a 0 b 0 -.02 0 0 3; {set the red ray}
+				SR 0 a 0 b 0 -.01 0 0 4; {set the yellow ray}
+				SR 0 a 0 b 0    0 0 0 5; {set the central ray}
+				SR 0 a 0 b 0  .01 0 0 7; {set the cyan ray}
+				SR 0 a 0 b 0  .02 0 0 2; {set the blue ray}
+			ENDLOOP;
+		ENDLOOP;
+		SB 0 .01 0 0 .01 0 0 .02 0 0 0; {set the beam dimensions}
+	ENDPROCEDURE;
+
+	PROCEDURE define_geometry bend_angle face_angle;
+		VARIABLE field_coefs 1 1;
+		VARIABLE shape_1 1 1;
+		VARIABLE shape_2 1 1;
+		
+		shape_1(1) := face_angle;
+		shape_2(1) := face_angle;
+
+		DL .50; {drift of length 50 cm}
+		MC .10 bend_angle .01 field_coefs shape_1 shape_2 1; {magnetic dipole component, 10 cm radius, 30 degrees, 1 cm aperture}
+		DL .50; { drift of length 50 cm}
+		PS .01; {poincare section (but it's actually just a line)}
+	ENDPROCEDURE;
+
+	PROCEDURE calculate_properties;
+		focalplane_angle := atan(-ME(1,26)/ME(2,2)/ME(1,6));
+		{focalplane_angle := atan((-ME(1,26)/ME(2,2) + ME(1,2)*ME(2,26)/ME(2,2)^2)/ME(1,6));?}
+		focalplane_curvature := ME(1,1)*ME(1,266)/ME(1,6)^2;
+		isochronous_angle := atan(ME(5,6)/ME(1,6));
+		dispersion := central_energy/ME(1,6)*cos(focalplane_angle);
+	ENDPROCEDURE;
+	
+	PROCEDURE optimize_design;
+		VARIABLE bend_angle 1;
+		VARIABLE face_angle 1;
+		VARIABLE error 1;
+
+		OV 3 3 0; {3rd order, 3d phase space, 0 parameters}
+		RP central_energy 1 1; {kinetic energy 15MeV, mass 1 Da, charge 1 e}
+		FR 3; {fringe field mode 3 (enge function)}
+		
+		bend_angle := 30;
+		face_angle := 0;
+		FIT bend_angle face_angle;
+		
+			UM; {set the map to unity}
+			
+			set_rays;
+			
+			BP; {begin picture}
+
+			define_geometry bend_angle face_angle;
+
+			EP; {end picture}
+			PG -1 -2; {show the picture from the x and y directions with an envelope (windows 1 and 2)}
+			
+			calculate_properties;
+			error := (ME(1,2)/1.)^2 + ((dispersion - 10)/10)^2;
+			
+			WRITE 6 '['&ST(bend_angle)&', '&ST(face_angle)&', '&ST(error)&'],';
+		
+		ENDFIT 1e-5 1000 1 error;
+		
+		WRITE 6 '';
+		WRITE 6 'focal plane angle       = '&ST(focalplane_angle*180/PI)&' degrees';
+		WRITE 6 'focal plane curvature   = '&ST(focalplane_curvature)&' m^-1';
+		WRITE 6 'isochronous plane angle = '&ST(isochronous_angle*180/PI)&' degrees';
+		WRITE 6 'dispersion              = '&ST(dispersion*10)&' keV/cm';
+		WRITE 6 '';
+		WRITE 6 'tranfer matrix:';
+		
+		PM 6; {prints the map to the console}
+	ENDPROCEDURE;
+	
+	central_energy := 15; {MeV}
+	optimize_design;
+
+ENDPROCEDURE;
+
+run;
+
+END;
