@@ -225,6 +225,11 @@ PROCEDURE MRSt;
 	{quad2+hex2: length Q  H  Oct     size}
 	M5           0.5    Q2 H2 0   0 0 0.01;
 	
+	{pick this on the fly to get first-order focus}
+	S4 := -ME(1,2)/ME(2,2);
+	IF S4<0;
+		S4 := 0;
+	ENDIF;
 	DL S4;
 
 	PS 0.02;
@@ -263,7 +268,6 @@ PROCEDURE define_rays;
 	ENDIF;
 
 	IF FLAG_HO>0;
-		WRITE 6 'color is' color_code;
 		SR 0 AX 0 0 0 DE 0 0 color_code;
 		SR 0 0.5*AX 0 0 0 DE 0 0 color_code;
 		SR 0 0 0 0 0 DE 0 0 color_code;
@@ -366,10 +370,10 @@ ENDPROCEDURE;
 PROCEDURE FIT_FP;
 	NSTEP := 0;
 
-	FIT u1;
-		CR;
-		define_rays;
+	CR;
+	define_rays;
 
+	FIT u1;
 		UM;
 		MRST;
 
@@ -391,10 +395,12 @@ PROCEDURE FIT_FP;
 		FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
 		FPDESIGN(1) := FP_tilt;
 
-		OBJ := ABS(ME(1,2))+ABS(ME(3,4));
+		OBJ := ME(1,2)^2 + ME(3,4)^2;
 
 		NSTEP := NSTEP+1;
 	ENDFIT 1e-10 0 1 OBJ;
+	
+	WRITE 6 'u1 =' u1;
 
 ENDPROCEDURE;
 
@@ -443,8 +449,6 @@ PROCEDURE main;
 	FLAG_HO := 0;
 
 	u1 := 22.7;
-
-	S4 := 0.6;
 
 	{ENERGY LOOP *********************}
 	LOOP IENERGY 1 9;
@@ -610,25 +614,7 @@ PROCEDURE main;
 
 	WRITE 6 'Start FP calculations*******************************';
 
-	S4 := 0.600;
-
 	FLAG_HO := 1;  {Central rays only within acceptances}
-
-	{optimize S4 (the focal plane position)}
-	NSTEP := 0;
-	FIT S4;
-		CR;
-		define_rays;
-		
-		UM;
-		MRSt;
-
-		READ_RAY;
-
-		WV := (MAXRAYVEC(1)-MINRAYVEC(1))/2;
-		NSTEP := NSTEP+1;
-	ENDFIT 1E-11 0 1 WV;
-	WRITE 6 'S4:=' S4;
 	
 	{now make a pretty multicolor picture}
 	CR;
