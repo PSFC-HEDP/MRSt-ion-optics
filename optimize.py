@@ -1,4 +1,4 @@
-from math import sqrt
+from math import sqrt, inf
 import subprocess
 import re
 import pickle
@@ -8,32 +8,55 @@ import matplotlib.pyplot as plt
 from scipy import optimize
 
 
-time_skew = 8.1 # ps/keV
-min_oct = -0.002
-max_oct = -0.004
+FILE_TO_OPTIMIZE = "MRSt_OMEGA"
+PARAMETER_NAMES = ["Oct", "Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
+MIN_OCT = -0.004
+MAX_OCT =  0.004
 
 try:
-	with open("cache.pkl", "rb") as file:
+	with open(f"{FILE_TO_OPTIMIZE}_cache.pkl", "rb") as file:
 		cache = pickle.load(file)
 except FileNotFoundError:
 	cache = {}
+
+
+def system_quality(parameters):
+	output = run_cosy(parameters)
+	time_skew = float(re.search(r"Time skew \(ps/keV\) = +([-.\d]+)", output).group(1))
+	tof_width = float(re.search(r"N 5 FPDESIGN Time Resol\.\(ps\) +([-.\d]+)", output).group(1))
+	energy_width = float(re.search(r"N 4 FPDESIGN HO Resol\.RAY\(keV\) +([-.\d]+)", output).group(1))
+	time_resolution = sqrt(tof_width**2 + (energy_width*time_skew)**2)
+	print(f"this design has a time resolution of {time_resolution:.1f} ps and an energy resolution of {energy_width:.1f} keV")
+	return 100*(time_resolution/100 + energy_width/400)
+
+
+def get_defaults():
+	with open(f"{FILE_TO_OPTIMIZE}.fox", "r") as f:
+		script = f.read()
+	values = []
+	bounds = []
+	for name in PARAMETER_NAMES[1:]:
+		values.append(float(re.search(rf"{name} := ([-.\d]+);", script).group(1)))
+		if name.startswith("S"):
+			bounds.append((0, 2.0))
+		elif name.startswith("angle"):
+			bounds.append((0, 90))
+		elif name.startswith("u"):
+			bounds.append((-60, 60))
+		else:
+			bounds.append((-.05, .05))
+	return np.array(values), bounds
 
 
 def run_cosy(parameters):
 	""" get the observable values at these perturbations """
 	parameters = tuple(parameters)
 	if parameters not in cache:
-
-		cO, aQ, aH, bQ, bH = parameters
-
-		with open('MRSt_final_70deg_proton.fox', 'r') as f:
+		with open(f'{FILE_TO_OPTIMIZE}.fox', 'r') as f:
 			script = f.read()
 		
-		script = re.sub(r"AQ := [-.\d]+;", f"AQ := {aQ};", script)
-		script = re.sub(r"AH := [-.\d]+;", f"AH := {aH};", script)
-		script = re.sub(r"OCT := [-.\d]+;", f"OCT := {cO};", script)
-		script = re.sub(r"BQ := [-.\d]+;", f"BQ := {bQ};", script)
-		script = re.sub(r"BH := [-.\d]+;", f"BH := {bH};", script)
+		for i, name in enumerate(PARAMETER_NAMES):
+			script = re.sub(rf"{name} := [-.\d]+;", f"{name} := {parameters[i]};", script)
 
 		with open('temp.fox', 'w') as g:
 			g.write(script)
@@ -45,7 +68,7 @@ def run_cosy(parameters):
 			raise
 
 		cache[parameters] = result.stdout.decode('ascii')
-		with open("cache.pkl", "wb") as file:
+		with open(f"{FILE_TO_OPTIMIZE}_cache.pkl", "wb") as file:
 			pickle.dump(cache, file)
 
 	return cache[parameters]
@@ -54,33 +77,40 @@ def run_cosy(parameters):
 def p_distance(*parameters):
 	output = run_cosy(parameters)
 	distance = float(re.search(r"N 3 FPDESIGN p-dist\(mm\) +([-.\d]+)", output).group(1))
-	print(f"  {parameters[0]} -> {distance:.2g}mm")
+	print(f"  {parameters[0]}T -> {distance:.2g}mm")
 	return distance
-
-
-def time_resolution(parameters):
-	output = run_cosy(parameters)
-	tof_width = float(re.search(r"N 5 FPDESIGN Time Resol\.\(ps\) +([-.\d]+)", output).group(1))
-	energy_width = float(re.search(r"N 4 FPDESIGN HO Resol\.RAY\(keV\) +([-.\d]+)", output).group(1))
-	total = sqrt(tof_width**2 + (energy_width*time_skew)**2)
-	return total
 
 
 def outer_objective(parameters):
 	parameters = tuple(parameters)
 	if parameters not in cache:
 		try:
-			cO = optimize.brentq(p_distance, min_oct, max_oct, args=parameters, rtol=1e-5)
+			Oct = optimize.brentq(p_distance, MIN_OCT, MAX_OCT, args=parameters, rtol=1e-5)
 		except ValueError:
-			cO = min([min_oct, max_oct], key=lambda o: abs(p_distance(o, *parameters)))
-		cache[parameters] = time_resolution((cO,) + parameters)
+			Oct = min([MIN_OCT, MAX_OCT], key=lambda o: abs(p_distance(o, *parameters)))
+		cache[parameters] = system_quality((Oct,) + parameters)
 
 	print(f"{parameters} -> {cache[parameters]:.2f}ps")
 	return cache[parameters]
 
 
+def simplexify(x0, ranges):
+	vertices = [np.array(x0)]
+	for i in range(len(x0)):
+		vertices.append(np.array(x0))
+		vertices[-1][i] += (ranges[i][1] - ranges[i][0])/10
+
+
 def optimize_design():
-	result = optimize.minimize(outer_objective, (-0.00485060696, -0.00052117182, -0.030908382, 0.00225), method='Nelder-Mead')
+	defaults, bounds = get_defaults()
+	initial_simplex = simplexify(defaults, bounds)
+	result = optimize.minimize(
+		outer_objective,
+		defaults,
+		bounds=bounds,
+		method='Nelder-Mead',
+		options=dict(initial_simplex=initial_simplex)
+		)
 	print(result.x)
 
 

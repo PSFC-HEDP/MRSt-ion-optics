@@ -80,16 +80,6 @@ VARIABLE TKIN 1;
 
 VARIABLE NSTEP 1;
 
-VARIABLE H01 1;     {param. used in fit for d1 entrance-edge curv.}
-VARIABLE H02 1;     {param. used in fit for d1 exit-edge curv.}
-VARIABLE H03 1;     {param. used in fit for d2 entrance-edge curv.}
-VARIABLE H04 1;     {param. used in fit for d2 exit-edge curv.}
-
-VARIABLE G01 1;     {param. used in fit for d1 entrance-edge curv.}
-VARIABLE G02 1;     {param. used in fit for d1 exit-edge curv.}
-VARIABLE G03 1;     {param. used in fit for d2 entrance-edge curv.}
-VARIABLE G04 1;     {param. used in fit for d2 exit-edge curv.}
-
 VARIABLE OBJ 1;
 VARIABLE TEMP 1;
 VARIABLE RAR 1;     {Resolution using AR ("aberration resolution" in two-letter-per-phrase-ese)}
@@ -180,13 +170,14 @@ ENDPROCEDURE;
 {MRSt geometrical Layout *******************************}
 PROCEDURE MRSt;
 	S0 := 2.00;
-	Q1 := -0.00647;
-	H1 := -0.00130;
+	Q1 := -0.0065;
+	H1 := -0.0013;
 	S1 := 0.10;
+	u1 := 0;
 	angle := 64;
-	u2 := 31.2;
+	u2 := 31;
 	S2 := 0.20;
-	Oct := -0.0045995;
+	Oct := -0.0046;
 	S3 := 0.20;
 	Q2 := 0.02;
 	H2 := -0.0030;
@@ -196,12 +187,12 @@ PROCEDURE MRSt;
 	B1N(3) := 0.0;
 
 	B1S1(1) := TAN(u1*3.14159265359/180);
-	B1S1(2) := H01;
-	B1S1(3) := G01;
+	B1S1(2) := 0.0;
+	B1S1(3) := 0.0;
 	
 	B1S2(1) := TAN(u2*3.14159265359/180);
-	B1S2(2) := H02;
-	B1S2(3) := G02;
+	B1S2(2) := 0.0;
+	B1S2(3) := 0.0;
 	
 	PS 0.001 ;
 	
@@ -213,7 +204,7 @@ PROCEDURE MRSt;
 	DL S1;
 	
 	{dipole: R   θ     size profile entrance exit order}
-	MC       0.6 angle 0.03 B1N     B1S1     B1S2 3;
+	MC       0.6 angle 0.01 B1N     B1S1     B1S2 3;
 
 	DL S2;
 	
@@ -223,7 +214,7 @@ PROCEDURE MRSt;
 	DL S3;
 	
 	{quad2+hex2: length Q  H  Oct     size}
-	M5           0.5    Q2 H2 0   0 0 0.01;
+	M5           0.3    Q2 H2 0   0 0 0.01;
 	
 	{pick this on the fly to get first-order focus}
 	S4 := -ME(1,2)/ME(2,2);
@@ -368,40 +359,29 @@ ENDPROCEDURE;
 
 {PROCEDURE FIT_FP *****************************}
 PROCEDURE FIT_FP;
-	NSTEP := 0;
-
 	CR;
 	define_rays;
 
-	FIT u1;
-		UM;
-		MRST;
+	UM;
+	MRST;
 
-		READ_RAY;
+	READ_RAY;
 
-		WV:=(MAXRAYVEC(1)-MINRAYVEC(1))/2;
-		WVY:=(MAXRAYVEC(3)-MINRAYVEC(3))/2;
+	WV:=(MAXRAYVEC(1)-MINRAYVEC(1))/2;
+	WVY:=(MAXRAYVEC(3)-MINRAYVEC(3))/2;
 
-		AR MAP XX AX YY AY DE 0.000 100 RAR;
-		MRESOL_P1 := ABS(ME(1,6))/ABS(2*XX*ME(1,1));
-		gamma := 1 + CONS(ETA);
-		WVPOL:=(MAXRAYVEC(5)-MINRAYVEC(5));
+	AR MAP XX AX YY AY DE 0.000 100 RAR;
+	MRESOL_P1 := ABS(ME(1,6))/ABS(2*XX*ME(1,1));
+	gamma := 1 + CONS(ETA);
+	WVPOL:=(MAXRAYVEC(5)-MINRAYVEC(5));
 
-		time_min:= 1E12*MINRAYVEC(5)*(1+gamma)/(CONS(V0)*gamma);
-		time_max:= 1E12*MaxRAYVEC(5)*(1+gamma)/(CONS(V0)*gamma);
+	time_min:= 1E12*MINRAYVEC(5)*(1+gamma)/(CONS(V0)*gamma);
+	time_max:= 1E12*MaxRAYVEC(5)*(1+gamma)/(CONS(V0)*gamma);
 
-		dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
-		denergy := ABS(EP*1000/MRESOL_P1);
-		FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
-		FPDESIGN(1) := FP_tilt;
-
-		OBJ := ME(1,2)^2 + ME(3,4)^2;
-
-		NSTEP := NSTEP+1;
-	ENDFIT 1e-10 0 1 OBJ;
-	
-	WRITE 6 'u1 =' u1;
-
+	dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
+	denergy := ABS(EP*1000/MRESOL_P1);
+	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+	FPDESIGN(1) := FP_tilt;
 ENDPROCEDURE;
 
 
@@ -448,8 +428,6 @@ PROCEDURE main;
 
 	FLAG_HO := 0;
 
-	u1 := 22.7;
-
 	{ENERGY LOOP *********************}
 	LOOP IENERGY 1 9;
 		DE := 0.14; {defines 9 energies, +/- 0.xxx}
@@ -486,6 +464,8 @@ PROCEDURE main;
 	
 	UM;
 	MRSt;
+	
+	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6));
 
 	FPDESIGN(4) := EP*1000/(ABS(ME(1,6))/(2*WV));
 	FPDESIGN(5) := dtime;
@@ -508,7 +488,7 @@ PROCEDURE main;
 	dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
 	WRITE 6 'Time difference (ps)' dtime;
 	WRITE 6 'Path-length difference (mm)' 1e-9*dtime*CONS(v0);
-	WRITE 6 'FP Tilt/deg' atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+	WRITE 6 'FP Tilt/deg' FP_tilt*180/PI;
 	WRITE 6 'Focal plane curvature radius' R;
 	WRITE 6 'ME(1,266)' ME(1,266);
 
@@ -550,12 +530,6 @@ PROCEDURE main;
 
 	WRITE 6 'Time Central Ray (ps)' 1e12*SPOS/CONS(v0);
 
-	LOOP M 1 12;
-		LOOP N 1 {3}9;
-			WRITE 6 'M N'&SF(M,'(I2.1)')&SF(N,'(I2.1)')&' ISOR '&RESDEF(M)&SF(ISOR(M,N),'(F16.5)');
-		ENDLOOP;
-	ENDLOOP;
-
 	{***************Set identical ISOR and FOPR parameters}
 	N := 2;
 	LOOP M 1 12;
@@ -592,11 +566,13 @@ PROCEDURE main;
 	ISODESIGN(4) := FPDESIGN(4);
 	ISODESIGN(5) := FPDESIGN(5);
 
-	{Calc. p-dist with temporary fixed length of FP = 0.67375 m}
-
-	FPDESIGN(3) := 1000*(FPDESIGN(2)- SQRT(FPDESIGN(2)*FPDESIGN(2)-0.25*FPDESIGN(7)^2));
-	IF FPDESIGN(2)<0; 
-		FPDESIGN(3) := -1000*(FPDESIGN(3)/1000-2*FPDESIGN(2)); 
+	{Calc. signed p-dist}
+	FPDESIGN(3) := 1000*0.5*FPDESIGN(7);
+	IF ABS(FPDESIGN(2))>ABS(FPDESIGN(7));
+		FPDESIGN(3) := 1000*(ABS(FPDESIGN(2)) - SQRT(FPDESIGN(2)*FPDESIGN(2)-0.25*FPDESIGN(7)^2));
+	ENDIF;
+	IF FPDESIGN(2)<0;
+		FPDESIGN(3) := -FPDESIGN(3);
 	ENDIF;
 
 	ISODESIGN(7) := SQRT((ISOR(10,1)-ISOR(10,3))^2+(ISOR(12,1)-ISOR(12,3))^2);
@@ -628,13 +604,15 @@ PROCEDURE main;
 	color_code := 5;
 	define_rays;
 	UM;
-	BP;
+	{BP;}
 	MRSt;
-	EP;
+	{EP;}
 
-	PG -1 -2; {on GRAPHICS screen}
+	{PG -1 -2; {on GRAPHICS screen}
 	PP -10 0. 0.; {pic001.ps}
-	PP -10 0. 90.; {pic002.ps}
+	PP -10 0. 90.; {pic002.ps}}
+	
+	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6));
 
 	WVY := (MAXRAYVEC(3)-MINRAYVEC(3));
 
@@ -647,20 +625,20 @@ PROCEDURE main;
 	WRITE 6 '****DE' DE;
 	WRITE 6 '****DE/MeV' TKIN;
 	WRITE 6 '****S4:=' S4;
-	WRITE 6 '****z/m:=' (S4-0.6);
-	WRITE 6 '****x/m =' (MAXRAYVEC(1)+MINRAYVEC(1))/2;
-	WRITE 6 '****HO Resol. by RAY(keV)' EP*1000/(ABS(ME(1,6))/(2*WV));
-	WRITE 6 '****dtime' ABS(dtime);
+	WRITE 6 '****dx/m =' (MAXRAYVEC(1)+MINRAYVEC(1))/2;
+	WRITE 6 '****denergy/keV' EP*1000/(ABS(ME(1,6))/(2*WV));
+	WRITE 6 '****dtime/ps' ABS(dtime);
 	WRITE 6 '****Full-Y-SIZE/mm' WVY*1000;
 	WRITE 6 '********************' ;
 	WRITE 6 ' ' ;
 
-	WRITE 6 'dx/mm:=' 1000*ABS(MAXRAYVEC(1)-MINRAYVEC(1));
-	WRITE 6 'FP Tilt/deg' atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
-	WRITE 6 'FP Tilt/rad' atan(-ME(1,26)/ME(2,2)/ME(1,6));
-	WRITE 6 'FP COS(Tilt/rad)' COS(atan(-ME(1,26)/ME(2,2)/ME(1,6)));
-
-	WRITE 6 'dz/mm:=' 1000*ABS(MAXRAYVEC(1)-MINRAYVEC(1))/COS(atan(-ME(1,26)/ME(2,2)/ME(1,6)));
+	WRITE 6 'dx/mm =               '&SF(1000*ABS(MAXRAYVEC(1)-MINRAYVEC(1)),'(F11.5)');
+	WRITE 6 'dz/mm =               '&SF(1000*ABS(MAXRAYVEC(1)-MINRAYVEC(1))/cos(FP_tilt),'(F11.5)');
+	WRITE 6 'FP Tilt/deg =         '&SF(FP_tilt*180/PI,'(F11.5)');
+	WRITE 6 'FP Tilt/rad =         '&SF(FP_tilt,'(F11.5)');
+	WRITE 6 'FP cos(Tilt/rad) =    '&SF(cos(FP_tilt),'(F11.5)');
+	WRITE 6 'Dispersion (mm/keV) = '&SF(ME(1,6)/(EP*cos(FP_tilt)),'(F11.5)');
+	WRITE 6 'Time skew (ps/keV) =  '&SF((ME(5,6)+ME(1,6)*tan(FP_tilt))*1e12*(1+gamma)/(CONS(v0)*gamma)/EP/1e3,'(F11.5)');
 
 	WRITE 11 'ISOR(1,N) ISOR(2,N)   ISOR(3,N)   ISOR(4,N)  ISOR(5,N)   ISOR(6,N)     ISOR(7,N)
 	   ISOR(8,N) ISOR(9,N) ISOR(10,N)  ISOR(11,N)  ISOR(12,N)';
