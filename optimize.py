@@ -30,22 +30,41 @@ def system_quality(parameters):
 	return 100*(time_resolution/100 + energy_width/400)
 
 
-def get_defaults():
-	with open(f"{FILE_TO_OPTIMIZE}.fox", "r") as f:
-		script = f.read()
-	values = []
-	bounds = []
-	for name in PARAMETER_NAMES[1:]:
-		values.append(float(re.search(rf"{name} := ([-.\d]+);", script).group(1)))
-		if name.startswith("S"):
-			bounds.append((0, 2.0))
-		elif name.startswith("angle"):
-			bounds.append((0, 90))
-		elif name.startswith("u"):
-			bounds.append((-60, 60))
-		else:
-			bounds.append((-.05, .05))
-	return np.array(values), bounds
+def optimize_design():
+	defaults, bounds = get_defaults()
+	initial_simplex = simplexify(defaults, bounds)
+	result = optimize.minimize(
+		system_quality_with_optimal_octopole,
+		defaults,
+		bounds=bounds,
+		method='Nelder-Mead',
+		options=dict(initial_simplex=initial_simplex)
+		)
+	print(result.x)
+
+
+def system_quality_with_optimal_octopole(parameters):
+	parameters = tuple(parameters)
+	if parameters not in cache:
+		try:
+			Oct = optimize.brentq(focalplane_bending_distance, MIN_OCT, MAX_OCT, args=parameters, rtol=1e-5)
+		except ValueError:
+			print("You need to widen the octopole limits!")
+			raise
+			# Oct = min([MIN_OCT, MAX_OCT], key=lambda o: abs(focalplane_bending_distance(o, *parameters)))
+		# store partial parameter sets and the corresponding best octopole strength in the cache
+		cache[parameters] = Oct
+
+	quality = system_quality((cache[parameters],) + parameters)
+	print(f"{parameters} -> {quality:.2f}ps")
+	return quality
+
+
+def focalplane_bending_distance(*parameters):
+	output = run_cosy(parameters)
+	distance = float(re.search(r"N 3 FPDESIGN p-dist\(mm\) +([-.\d]+)", output).group(1))
+	print(f"  {parameters[0]}T -> {distance:8.4f}mm")
+	return distance
 
 
 def run_cosy(parameters):
@@ -78,28 +97,22 @@ def run_cosy(parameters):
 	return cache[parameters]
 
 
-def p_distance(*parameters):
-	output = run_cosy(parameters)
-	distance = float(re.search(r"N 3 FPDESIGN p-dist\(mm\) +([-.\d]+)", output).group(1))
-	print(f"  {parameters[0]}T -> {distance:.2g}mm")
-	return distance
-
-
-def outer_objective(parameters):
-	parameters = tuple(parameters)
-	if parameters not in cache:
-		try:
-			Oct = optimize.brentq(p_distance, MIN_OCT, MAX_OCT, args=parameters, rtol=1e-5)
-		except ValueError:
-			print("You need to widen the octopole limits!")
-			raise
-			# Oct = min([MIN_OCT, MAX_OCT], key=lambda o: abs(p_distance(o, *parameters)))
-		# store partial parameter sets and the corresponding best octopole strength in the cache
-		cache[parameters] = Oct
-
-	quality = system_quality((cache[parameters],) + parameters)
-	print(f"{parameters} -> {quality:.2f}ps")
-	return quality
+def get_defaults():
+	with open(f"{FILE_TO_OPTIMIZE}.fox", "r") as f:
+		script = f.read()
+	values = []
+	bounds = []
+	for name in PARAMETER_NAMES[1:]:
+		values.append(float(re.search(rf"{name} := ([-.\d]+);", script).group(1)))
+		if name.startswith("S"):
+			bounds.append((0, 2.0))
+		elif name.startswith("angle"):
+			bounds.append((0, 90))
+		elif name.startswith("u"):
+			bounds.append((-60, 60))
+		else:
+			bounds.append((-.05, .05))
+	return np.array(values), bounds
 
 
 def simplexify(x0, ranges):
@@ -107,19 +120,6 @@ def simplexify(x0, ranges):
 	for i in range(len(x0)):
 		vertices.append(np.array(x0))
 		vertices[-1][i] += (ranges[i][1] - ranges[i][0])/10
-
-
-def optimize_design():
-	defaults, bounds = get_defaults()
-	initial_simplex = simplexify(defaults, bounds)
-	result = optimize.minimize(
-		outer_objective,
-		defaults,
-		bounds=bounds,
-		method='Nelder-Mead',
-		options=dict(initial_simplex=initial_simplex)
-		)
-	print(result.x)
 
 
 if __name__ == '__main__':
