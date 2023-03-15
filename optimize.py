@@ -10,8 +10,8 @@ from scipy import optimize
 
 FILE_TO_OPTIMIZE = "MRSt_OMEGA"
 PARAMETER_NAMES = ["Oct", "Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
-MIN_OCT = -0.004
-MAX_OCT =  0.004
+MIN_OCT = -0.0005
+MAX_OCT =  0.0005
 
 try:
 	with open(f"{FILE_TO_OPTIMIZE}_cache.pkl", "rb") as file:
@@ -67,7 +67,9 @@ def run_cosy(parameters):
 			print(result.stdout.decode('ascii'))
 			raise
 
+		# store full parameter sets and their resulting COSY outputs in the cache
 		cache[parameters] = result.stdout.decode('ascii')
+
 		with open(f"{FILE_TO_OPTIMIZE}_cache.pkl", "wb") as file:
 			pickle.dump(cache, file)
 
@@ -87,11 +89,15 @@ def outer_objective(parameters):
 		try:
 			Oct = optimize.brentq(p_distance, MIN_OCT, MAX_OCT, args=parameters, rtol=1e-5)
 		except ValueError:
-			Oct = min([MIN_OCT, MAX_OCT], key=lambda o: abs(p_distance(o, *parameters)))
-		cache[parameters] = system_quality((Oct,) + parameters)
+			print("You need to widen the octopole limits!")
+			raise
+			# Oct = min([MIN_OCT, MAX_OCT], key=lambda o: abs(p_distance(o, *parameters)))
+		# store partial parameter sets and the corresponding best octopole strength in the cache
+		cache[parameters] = Oct
 
-	print(f"{parameters} -> {cache[parameters]:.2f}ps")
-	return cache[parameters]
+	quality = system_quality((cache[parameters],) + parameters)
+	print(f"{parameters} -> {quality:.2f}ps")
+	return quality
 
 
 def simplexify(x0, ranges):
