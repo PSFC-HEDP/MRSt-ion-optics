@@ -68,7 +68,9 @@ def run_cosy(parameters):
 			raise
 
 		# store full parameter sets and their resulting COSY outputs in the cache
-		cache[parameters] = result.stdout.decode('ascii')
+		output = result.stdout.decode('ascii')
+		output = output[1036:]
+		cache[parameters] = output
 
 		with open(f"{FILE_TO_OPTIMIZE}_cache.pkl", "wb") as file:
 			pickle.dump(cache, file)

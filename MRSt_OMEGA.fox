@@ -333,30 +333,6 @@ PROCEDURE READ_RAY;
 ENDPROCEDURE;
 
 
-PROCEDURE WRITER5VSINPUT II;
-	VARIABLE OUTPUT 8000;
-	VARIABLE TMP 1;
-	VARIABLE TMP2 1;
-	VARIABLE ITRAY 1;
-	VARIABLE ITCOORD 1;
-
-	LOOP ITRAY 1 NRAYVEC-1;
-		OUTPUT:='';
-		LOOP ITCOORD 1 6;
-			TMP:=RAYVECIN(ITRAY,ITCOORD);
-			IF ITCOORD#5;
-				OUTPUT:=OUTPUT&S(TMP)&' , ';
-			ENDIF;
-		ENDLOOP;
-
-		TMP2:=RAYVECOUT(ITRAY,5);
-		TMP:= 1e12*RAYVECOUT(ITRAY,5)*(2+cons(ETA))/(CONS(v0)*(1+cons(ETA)));
-		OUTPUT:=OUTPUT&S(TMP2)&' , '&S(TMP);
-		WRITE II OUTPUT;
-	ENDLOOP;
-ENDPROCEDURE;
-
-
 {PROCEDURE FIT_FP *****************************}
 PROCEDURE FIT_FP;
 	CR;
@@ -442,10 +418,6 @@ PROCEDURE main;
 
 		FIT_FP;
 
-		IF IENERGY=2;
-			PM 12;
-		ENDIF;
-
 		ISOR(4,IENERGY) := (MAXRAYVEC(5)+MINRAYVEC(5))/2;
 
 		ISOR(9,IENERGY) := RAYVECOUT(2,2);
@@ -473,28 +445,11 @@ PROCEDURE main;
 	MRESOL_P1 := ABS(ME(1,6))/ABS(2*XX*ME(1,1));
 	R := ME(1,6)^2/(ME(1,1)*ME(1,266));
 
-	WRITE 6 '1st-order resolving power' abs(MRESOL_P1);
-	WRITE 6 '1st-order resolution (keV)' abs(EP*1000/MRESOL_P1);
 	CRDESIGN(2) := ABS(EP*1000/MRESOL_P1);
 
-	WRITE 6 'Half-image width, WV (mm)' 1e3*WV;
-	WRITE 6 'Vert. Half-image width, WVY (mm)' 1e3*WVY;
-
-	WRITE 6 'HO resolving power using RAY' ABS(ME(1,6))/(2*WV);
-	WRITE 6 'HO resolving power using AR' RAR;
-	WRITE 6 'HO resolution using AR (keV)' EP*1000/RAR;
-	WRITE 6 'HO resolution using RAY (keV)' EP*1000/(ABS(ME(1,6))/(2*WV));
-
 	dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
-	WRITE 6 'Time difference (ps)' dtime;
-	WRITE 6 'Path-length difference (mm)' 1e-9*dtime*CONS(v0);
-	WRITE 6 'FP Tilt/deg' FP_tilt*180/PI;
-	WRITE 6 'Focal plane curvature radius' R;
-	WRITE 6 'ME(1,266)' ME(1,266);
 
 	LC := SPOS;
-
-	WRITE 6 'SPOS=Length Central Ray' SPOS;
 
 	WRITE 6 'SPOS=Length Central Ray' SPOS;
 
@@ -527,8 +482,6 @@ PROCEDURE main;
 	LOOP K 1 9;
 		ISOR(12,K):=ISOR(11,K)+ISOR(8,K)*SIN(ISOR(9,K));
 	ENDLOOP;
-
-	WRITE 6 'Time Central Ray (ps)' 1e12*SPOS/CONS(v0);
 
 	{***************Set identical ISOR and FOPR parameters}
 	N := 2;
@@ -619,43 +572,11 @@ PROCEDURE main;
 	gamma := 1 + CONS(ETA);
 	WVPOL:=(MAXRAYVEC(5)-MINRAYVEC(5));
 
-	dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
-	WRITE 6 ' ' ;
-	WRITE 6 '********************' ;
-	WRITE 6 '****DE' DE;
-	WRITE 6 '****DE/MeV' TKIN;
-	WRITE 6 '****S4:=' S4;
-	WRITE 6 '****dx/m =' (MAXRAYVEC(1)+MINRAYVEC(1))/2;
-	WRITE 6 '****denergy/keV' EP*1000/(ABS(ME(1,6))/(2*WV));
-	WRITE 6 '****dtime/ps' ABS(dtime);
-	WRITE 6 '****Full-Y-SIZE/mm' WVY*1000;
-	WRITE 6 '********************' ;
-	WRITE 6 ' ' ;
-
-	WRITE 6 'dx/mm =               '&SF(1000*ABS(MAXRAYVEC(1)-MINRAYVEC(1)),'(F11.5)');
-	WRITE 6 'dz/mm =               '&SF(1000*ABS(MAXRAYVEC(1)-MINRAYVEC(1))/cos(FP_tilt),'(F11.5)');
-	WRITE 6 'FP Tilt/deg =         '&SF(FP_tilt*180/PI,'(F11.5)');
-	WRITE 6 'FP Tilt/rad =         '&SF(FP_tilt,'(F11.5)');
-	WRITE 6 'FP cos(Tilt/rad) =    '&SF(cos(FP_tilt),'(F11.5)');
+	WRITE 6 'FP Tilt (deg) =       '&SF(FP_tilt*180/PI,'(F11.5)');
 	WRITE 6 'Dispersion (mm/keV) = '&SF(ME(1,6)/(EP*cos(FP_tilt)),'(F11.5)');
 	WRITE 6 'Time skew (ps/keV) =  '&SF((ME(5,6)+ME(1,6)*tan(FP_tilt))*1e12*(1+gamma)/(CONS(v0)*gamma)/EP/1e3,'(F11.5)');
 
-	WRITE 11 'ISOR(1,N) ISOR(2,N)   ISOR(3,N)   ISOR(4,N)  ISOR(5,N)   ISOR(6,N)     ISOR(7,N)
-	   ISOR(8,N) ISOR(9,N) ISOR(10,N)  ISOR(11,N)  ISOR(12,N)';
-	WRITE 11 '   DE       E/MeV        v(m/s)    d_path/m    path/m    TOF/ps        dTOF/ps
-		  z^prime    a/rad      z/m        x/m     x/m@IsoPlane';
-	LOOP M 1 9;
-		M := 10-M;
-		WRITE 11 ''&SF(ISOR(1,M),'(F7.3)')&SF(ISOR(2,M),'(F10.5)')&SF(ISOR(3,M),'(F16.5)')&SF(ISOR(4,M),
-		'(F10.5)')&SF(ISOR(5,M),'(F10.5)')&SF(ISOR(6,M),'(F14.5)')&SF(ISOR(7,M),'(F14.5)')&SF(ISOR(8,M),
-		'(F10.5)')&SF(ISOR(9,M),'(F10.5)')&SF(ISOR(10,M),'(F12.5)')&SF(ISOR(11,M),'(F11.5)')&SF(ISOR(12,M),
-		'(F12.5)');
-	ENDLOOP;
-	WRITE 11 'TILT ANGLE' FPDESIGN(1);
-
 	FPC;
-
-	PM 6;
 
 ENDPROCEDURE;
 
