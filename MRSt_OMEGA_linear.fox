@@ -13,14 +13,10 @@ VARIABLE B1S2 1 3;   {dipole1 exit-edge curvature}
 
 VARIABLE Q1 1;
 VARIABLE Q2 1;
-VARIABLE H1 1;
-VARIABLE H2 1;
-VARIABLE Oct 1;
 VARIABLE angle 1;
 VARIABLE S0 1;
 VARIABLE S1 1;
 VARIABLE S2 1;
-VARIABLE S3 1;
 VARIABLE S4 1;
 
 VARIABLE u1 1;       {dipole1 entrance angle}
@@ -140,17 +136,14 @@ ENDPROCEDURE;
 PROCEDURE MRSt;
 	VARIABLE FP_depth 1;
 
-	Q1 := 0.000761766;
-	Q2 := 0.0254320;
-	H1 := 0.0000115991;
-	H2 := 0.00008;
+	Q1 := 0.000746398;
+	Q2 := 0.0248932;
 	S0 := 2.00;
-	S1 := 0.1590;
-	S2 := 0.6332;
-	S3 := 0.6315;
-	angle := 62.7658;
-	u1 := -0.00317;
-	u2 := 43.52257;
+	S1 := 0.1585;
+	S2 := 1.2777;
+	angle := 64.209;
+	u1 := -0.0032;
+	u2 := 41.1897;
 
 	B1N(1) := 0.0;
 	B1N(2) := 0.0;
@@ -169,7 +162,7 @@ PROCEDURE MRSt;
 	DL S0;
 
 	{quad1+hex1: length Q  H  Oct     size}
-	M5           0.3    Q1 H1 0   0 0 0.01;
+	M5           0.3    Q1 0  0   0 0 0.01;
 
 	DL S1;
 
@@ -178,13 +171,8 @@ PROCEDURE MRSt;
 
 	DL S2;
 
-	{octopole: length Q H Oct     size}
-	M5         0.2    0 0 Oct 0 0 0.01;
-
-	DL S3;
-
 	{quad2+hex2: length Q  H  Oct     size}
-	M5           0.3    Q2 H2 0   0 0 0.01;
+	M5           0.3    Q2 0  0   0 0 0.01;
 
 	{pick this on the fly to get first-order focus}
 	S4 := -ME(1,2)/ME(2,2);
@@ -290,7 +278,7 @@ PROCEDURE main;
 
 	{initialize COSY ************************************}
 
-	OV 3 3 3; {set the calculations to 3rd order}
+	OV 1 3 3; {set the calculations to 1st order}
 	WSET 1.0E-3;
 	FR 3; {set the fringe field model}
 
@@ -327,25 +315,6 @@ PROCEDURE main;
 	DESIGNDEF(5) := 'Time Resol.(ps)       ';
 	DESIGNDEF(6) := 'y-Size(mm)         ';
 	DESIGNDEF(7) := 'Plane Length(m)         ';
-
-	{first, optimize the octopole to make the focal plane strait ************}
-
-	FLAG_HO := 0;  {look only at the central ray}
-	Oct := 0.;
-	num_iterations := 0;
-	FIT Oct;
-		CR;
-		define_rays;
-		UM;
-		MRSt;
-
-		calculate_focal_plane_curvature;
-		objective := 1/FPDESIGN(2);
-	
-		num_iterations := num_iterations+1;
-	ENDFIT 1e-8 100 4 objective;
-
-	WRITE 6 'in '&SF(num_iterations,'(I2.1)')&' iterations found optimal octopole strength (T) =' Oct;
 
 	{scan thru 9 different energies to draw the focal plane ************}
 
@@ -421,13 +390,13 @@ PROCEDURE main;
 	ISODESIGN(2) := ISODESIGN(7)^2/(8*ISODESIGN(3)/1000)+ISODESIGN(3)/2000;
 
 	{print out all of the results ********************}
-{
+
 	LOOP M 4 12;
 		LOOP N 1 9;
 			WRITE 6 'E='&SF(FOPR(2,N),'(F6.3)')&'MeV: FOPR '&RESDEF(M)&SF(FOPR(M,N),'(F16.5)');
 		ENDLOOP;
 	ENDLOOP;
-}
+
 	WRITE 6 '*****************************'; 
 	LOOP N 1 7;
 		WRITE 6 'FPDESIGN '&DESIGNDEF(N)&SF(FPDESIGN(N),'(F16.5)');
@@ -441,7 +410,7 @@ PROCEDURE main;
 	WRITE 6 'L central ray (m)   = '&SF(LC,'(F11.5)');
 	WRITE 6 'Dispersion (mm/keV) = '&SF(ME(1,6)/(E0*cos(FP_tilt)),'(F11.5)');
 	WRITE 6 'Time skew (ps/keV)  = '&SF((ME(5,6)+ME(1,6)*tan(FP_tilt))*1e12*(1+gamma)/(CONS(v0)*gamma)/E0/1e3,'(F11.5)');
-{
+
 	WRITE 6 'mapping matrix:';
 	PM 6;
 
@@ -466,7 +435,7 @@ PROCEDURE main;
 	PG -1 -2; {on GRAPHICS screen}
 	PP -10 0. 0.; {pic001.ps}
 	PP -10 0. 90.; {pic002.ps}
-}
+
 ENDPROCEDURE;
 
 

@@ -10,6 +10,13 @@ from scipy import optimize
 
 FILE_TO_OPTIMIZE = "MRSt_OMEGA"
 PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
+# FILE_TO_OPTIMIZE = "MRSt_OMEGA_quadratic"
+# PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "angle", "u1", "u2"]
+# FILE_TO_OPTIMIZE = "MRSt_OMEGA_linear"
+# PARAMETER_NAMES = ["Q1", "Q2", "S1", "S2", "angle", "u1", "u2"]
+
+with open(f'{FILE_TO_OPTIMIZE}.fox', 'r') as f:
+	script = f.read()
 
 try:
 	with open(f"{FILE_TO_OPTIMIZE}_cache.pkl", "rb") as file:
@@ -47,15 +54,12 @@ def system_quality(parameters):
 def run_cosy(parameters):
 	""" get the observable values at these perturbations """
 	parameters = tuple(parameters)
-	if parameters not in cache:
-		with open(f'{FILE_TO_OPTIMIZE}.fox', 'r') as f:
-			script = f.read()
-		
+	if parameters not in cache or "### ERRORS IN CODE" in cache[parameters]:
 		for i, name in enumerate(PARAMETER_NAMES):
-			script = re.sub(rf"{name} := [-.\d]+;", f"{name} := {parameters[i]};", script)
+			modified_script = re.sub(rf"{name} := [-.\d]+;", f"{name} := {parameters[i]};", script)
 
 		with open('temp.fox', 'w') as g:
-			g.write(script)
+			g.write(modified_script)
 
 		try:
 			result = subprocess.run(['C:/Program Files/COSY 10.0/cosy.exe', 'temp'], capture_output=True, check=True)
@@ -65,6 +69,9 @@ def run_cosy(parameters):
 
 		# store full parameter sets and their resulting COSY outputs in the cache
 		output = result.stdout.decode('ascii')
+		if "### ERROR" in output:
+			print(re.sub(r"[\n\r]+", "\n", output))
+			raise RuntimeError("COSY threw an error")
 		output = output[1036:]
 		cache[parameters] = output
 
@@ -75,8 +82,6 @@ def run_cosy(parameters):
 
 
 def get_defaults():
-	with open(f"{FILE_TO_OPTIMIZE}.fox", "r") as f:
-		script = f.read()
 	values = []
 	bounds = []
 	for name in PARAMETER_NAMES:
@@ -86,7 +91,7 @@ def get_defaults():
 		elif name.startswith("angle"):
 			bounds.append((0, 90))
 		elif name.startswith("u"):
-			bounds.append((-60, 60))
+			bounds.append((-45, 45))
 		else:
 			bounds.append((-.05, .05))
 	return np.array(values), bounds
