@@ -528,15 +528,13 @@ B2N(1) := n2;
 
 {ENERGY LOOP *********************}
 LOOP IENERGY 1 9;
-	DE := 0.14; {defines 9 energies, +/- 0.xxx}
+	DE := -.14+(IENERGY-1)*.14/4;
 
-	ISOR(1,IENERGY) := (-DE)+(IENERGY-1)*DE/4;
-	TKIN := 12.45*(1+((-DE)+(IENERGY-1)*DE/4));
+	ISOR(1,IENERGY) := DE;
+	TKIN := EP*(1+DE);
 	ISOR(2,IENERGY) := TKIN;
 	VELOCITY;
 	ISOR(3,IENERGY) := VELOC;
-
-	DE:= (-DE)+(IENERGY-1)*DE/4;
 
 	FIT_FP;
 

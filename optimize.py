@@ -9,9 +9,7 @@ from scipy import optimize
 
 
 FILE_TO_OPTIMIZE = "MRSt_OMEGA"
-PARAMETER_NAMES = ["Oct", "Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
-MIN_OCT = -0.0005
-MAX_OCT =  0.0005
+PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
 
 try:
 	with open(f"{FILE_TO_OPTIMIZE}_cache.pkl", "rb") as file:
@@ -20,51 +18,30 @@ except FileNotFoundError:
 	cache = {}
 
 
-def system_quality(parameters):
-	output = run_cosy(parameters)
-	time_skew = float(re.search(r"Time skew \(ps/keV\) = +([-.\d]+)", output).group(1))
-	tof_width = float(re.search(r"N 5 FPDESIGN Time Resol\.\(ps\) +([-.\d]+)", output).group(1))
-	energy_width = float(re.search(r"N 4 FPDESIGN HO Resol\.RAY\(keV\) +([-.\d]+)", output).group(1))
-	time_resolution = sqrt(tof_width**2 + (energy_width*time_skew)**2)
-	print(f"this design has a time resolution of {time_resolution:.1f} ps and an energy resolution of {energy_width:.1f} keV")
-	return 100*(time_resolution/100 + energy_width/400)
-
-
 def optimize_design():
 	defaults, bounds = get_defaults()
 	initial_simplex = simplexify(defaults, bounds)
 	result = optimize.minimize(
-		system_quality_with_optimal_octopole,
+		system_quality,
 		defaults,
 		bounds=bounds,
 		method='Nelder-Mead',
 		options=dict(initial_simplex=initial_simplex)
 		)
-	print(result.x)
+	print(result)
 
 
-def system_quality_with_optimal_octopole(parameters):
-	parameters = tuple(parameters)
-	if parameters not in cache:
-		try:
-			Oct = optimize.brentq(focalplane_bending_distance, MIN_OCT, MAX_OCT, args=parameters, rtol=1e-5)
-		except ValueError:
-			print("You need to widen the octopole limits!")
-			raise
-			# Oct = min([MIN_OCT, MAX_OCT], key=lambda o: abs(focalplane_bending_distance(o, *parameters)))
-		# store partial parameter sets and the corresponding best octopole strength in the cache
-		cache[parameters] = Oct
+def system_quality(parameters):
+	output = run_cosy(parameters)
+	time_skew = float(re.search(r"Time skew \(ps/keV\) += +([-.\d]+)", output).group(1))
+	tof_width = float(re.search(r"FPDESIGN Time Resol\.\(ps\) +([-.\d]+)", output).group(1))
+	energy_width = float(re.search(r"FPDESIGN HO Resol\.RAY\(keV\) +([-.\d]+)", output).group(1))
+	time_resolution = sqrt(tof_width**2 + (energy_width*time_skew)**2)
+	print(f"this design has a time resolution of {time_resolution:.1f} ps and an energy resolution of {energy_width:.1f} keV")
 
-	quality = system_quality((cache[parameters],) + parameters)
+	quality = 100*(time_resolution/100 + energy_width/400)
 	print(f"{parameters} -> {quality:.2f}ps")
 	return quality
-
-
-def focalplane_bending_distance(*parameters):
-	output = run_cosy(parameters)
-	distance = float(re.search(r"N 3 FPDESIGN p-dist\(mm\) +([-.\d]+)", output).group(1))
-	print(f"  {parameters[0]}T -> {distance:8.4f}mm")
-	return distance
 
 
 def run_cosy(parameters):
@@ -102,7 +79,7 @@ def get_defaults():
 		script = f.read()
 	values = []
 	bounds = []
-	for name in PARAMETER_NAMES[1:]:
+	for name in PARAMETER_NAMES:
 		values.append(float(re.search(rf"{name} := ([-.\d]+);", script).group(1)))
 		if name.startswith("S"):
 			bounds.append((0, 2.0))

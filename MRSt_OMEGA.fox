@@ -10,8 +10,6 @@ VARIABLE B1N 1 5;     {dipole1 B-field index}
 
 VARIABLE B1S1 1 3;   {dipole1 entrance-edge curvature}
 VARIABLE B1S2 1 3;   {dipole1 exit-edge curvature}
-VARIABLE B2S1 1 3;   {dipole2 entrance-edge curvature}
-VARIABLE B2S2 1 3;   {dipole2 exit-edge curvature}
 
 VARIABLE Q1 1;
 VARIABLE Q2 1;
@@ -23,26 +21,10 @@ VARIABLE S0 1;
 VARIABLE S1 1;
 VARIABLE S2 1;
 VARIABLE S3 1;
-VARIABLE S4 1;       {dipole2-to-FP dist}
+VARIABLE S4 1;
 
 VARIABLE u1 1;       {dipole1 entrance angle}
 VARIABLE u2 1;       {dipole1 exit angle}
-
-VARIABLE B1 1;       {dipole1 B field}
-VARIABLE B2 1;       {dipole2 B field}
-VARIABLE n1 1;       {dipole1 B-field index}
-VARIABLE n2 1;       {dipole2 B-field index}
-
-VARIABLE Theta1 1;   {dipole1 bending angle}
-VARIABLE Theta2 1;   {dipole2 bending angle}
-
-
-VARIABLE R1 1;       {dipole1 bending radius for 14-MeV p}
-VARIABLE R2 1;       {dipole2 bending radius for 14-MeV p}
-VARIABLE Gap 1;      {dipole1&2 half gap}
-
-VARIABLE DE 1;       {spectrometer energy spread}
-VARIABLE color_code 1; {ray display color}
 
 {START VARIABLES FOR RAY DEFINITION*********************}
 
@@ -51,80 +33,53 @@ VARIABLE AX 1;       {Half-emission angle in X-Z (bending) plane}
 VARIABLE YY 1;       {Source size in Y}
 VARIABLE AY 1;       {Half-emission angle in Y-Z (non-bending) plane}
 
-VARIABLE EP 1;       {proton energy}
-VARIABLE MRESOL_P1 1;{1st-order resolving power}
-VARIABLE HO_RES 1;   {HO energy resolution}
-VARIABLE gamma 1;    {used for r5 scaling}
-VARIABLE dtime 1;    {time resolution}
-VARIABLE time_min 1;  {min. total time}
-VARIABLE time_max 1;  {max. total time}
+VARIABLE DE 1;       {current dimensionless ray energy}
+VARIABLE color_code 1; {current ray display color}
 
-VARIABLE denergy 1;  {energy resolution}
+VARIABLE E0 1;       {ion energy}
+VARIABLE gamma 1;    {used for r5 scaling}
 
 {START VARIABLES FOR READ RAY***************************}
 
-VARIABLE WV 1;       {HO half-width signal distri at FP}
-VARIABLE WVY 1;      {1/2 VERTICAL IMAGE SIZE}  
-VARIABLE CENTER 1;   {center of HO signal distri at FP}
-VARIABLE NMAX 1;     {max number of iterations}
+VARIABLE WVX 1;       {HO width signal distri at FP}
+VARIABLE WVY 1;      {VERTICAL IMAGE SIZE}  
+VARIABLE WVL 1;       {POLVAL EQUIVALENT TO WVX}
 VARIABLE LC 1;       {Length of central ray}
 
-VARIABLE WVPOL 1;       {POLVAL EQUIVALENT TO WV}
-
 {VARIABLE FOR VELOCITY ******************************}
-VARIABLE A_DEUT 1; {DEUTERON MASS IN AMU} 
+
 VARIABLE VELOC 1;
 VARIABLE TKIN 1;
 
-{VARIABLES FOR FIT_FP **********************************}
+{various other variables ************************}
 
-VARIABLE NSTEP 1;
-
-VARIABLE OBJ 1;
-VARIABLE TEMP 1;
-VARIABLE RAR 1;     {Resolution using AR ("aberration resolution" in two-letter-per-phrase-ese)}
-
+VARIABLE num_iterations 1;
+VARIABLE objective 1;
 VARIABLE FP_tilt 1; {Focal plane tilt}
-
-VARIABLE RAYVECIN 1 11000 8;
 VARIABLE RAYVECOUT 1 11000 8;
 
-VARIABLE NRAYVEC 1;
-VARIABLE R 1;
-
-VARIABLE A 1;
-
-{VARIABLES FOR LINEARIZATION OF UNSREWED FOCAL PLANE}
-
-VARIABLE IENERGY 1;
 VARIABLE Z1 1; 
 VARIABLE Z2 1;
 VARIABLE X1 1;
 VARIABLE X2 1;
+VARIABLE numerator 1;
+VARIABLE denominator 1;
 
-VARIABLE A_COEFF 1;
-VARIABLE B_COEFF 1;
-VARIABLE C_COEFF 1;
-VARIABLE P_DIST  1;
-VARIABLE ISOR 1 20 9; {ISOchron.Results}
-VARIABLE FOPR 1 20 9; {FOcal Plane Results}
-VARIABLE RESDEF 12 20;
-
+{some loop indices that need to be declared globally because COSY has bad scoping}
+VARIABLE IENERGY 1;
 VARIABLE M 1;
 VARIABLE N 1;
 VARIABLE K 1;
 
 {Resulting design parameters}
 
-VARIABLE DESIGN 1 10;
+VARIABLE FOPR 1 20 9; {FOcal Plane Results}
 VARIABLE FPDESIGN 1 10; {Focal Plane Design}
 VARIABLE ISODESIGN 1 10; {ISO Plane Design}
-VARIABLE CRDESIGN 1 5; {Central Ray Design}
+VARIABLE RESDEF 12 20;
 VARIABLE DESIGNDEF 18 10;
 
 VARIABLE FLAG_HO 1;
-
-VARIABLE NN 1;
 
 
 {RETURNS THE MAXIMUM OF THE Ith COORDINATE OF RAYVEC}
@@ -132,7 +87,7 @@ FUNCTION MAXRAYVEC I;
 	VARIABLE ITRAY 1;
 
 	MAXRAYVEC:=-1E10;
-	LOOP ITRAY 2 NRAYVEC-1;
+	LOOP ITRAY 1 NRAY;
 		IF RAYVECOUT(ITRAY,I)>MAXRAYVEC;
 			MAXRAYVEC:=RAYVECOUT(ITRAY,I);
 		ENDIF;
@@ -144,7 +99,7 @@ ENDFUNCTION;
 FUNCTION MINRAYVEC I;
 	VARIABLE ITRAY 1;
 	MINRAYVEC:=1E10;
-	LOOP ITRAY 2 NRAYVEC-1;
+	LOOP ITRAY 1 NRAY;
 		IF RAYVECOUT(ITRAY,I)<MINRAYVEC;
 			MINRAYVEC:=RAYVECOUT(ITRAY,I);
 		ENDIF;
@@ -154,16 +109,30 @@ ENDFUNCTION;
 
 { set VELOC equal to }
 PROCEDURE VELOCITY;
+	VARIABLE A_DEUT 1; {DEUTERON MASS IN AMU} 
 	A_DEUT := 2.013553213;
 	VELOC := SQRT(1-1/(1+TKIN/(AMUMEV*A_DEUT))^2)*CLIGHT;
 ENDPROCEDURE;
 
 
 {Focal Plane Curve R, a neq 0 deg, Fp not perpendicular *******************************}
-PROCEDURE FPC;
+PROCEDURE calculate_focal_plane_curvature;
+	VARIABLE R 1;
 	R := (ME(1,6)^2+ME(1,1)^2*ME(1,26)^2)^1.5;
 	R := R/(ME(1,1)*(ME(1,6)*ME(1,266)-ME(1,26)*(ME(1,66)+2*ME(1,6)*ME(1,1)*ME(2,26))));
-	FPDESIGN(2):= R;
+	FPDESIGN(2) := R;
+ENDPROCEDURE;
+
+
+{Calc. signed p-dist}
+PROCEDURE calculate_focal_plane_bend;
+	FPDESIGN(3) := 1000*0.5*FPDESIGN(7);
+	IF ABS(FPDESIGN(2))>ABS(FPDESIGN(7));
+		FPDESIGN(3) := 1000*(ABS(FPDESIGN(2)) - SQRT(FPDESIGN(2)*FPDESIGN(2)-0.25*FPDESIGN(7)^2));
+	ENDIF;
+	IF FPDESIGN(2)<0;
+		FPDESIGN(3) := -FPDESIGN(3);
+	ENDIF;
 ENDPROCEDURE;
 
 
@@ -177,7 +146,6 @@ PROCEDURE MRSt;
 	angle := 64;
 	u2 := 31;
 	S2 := 0.20;
-	Oct := -0.0046;
 	S3 := 0.20;
 	Q2 := 0.02;
 	H2 := -0.0030;
@@ -194,7 +162,7 @@ PROCEDURE MRSt;
 	B1S2(2) := 0.0;
 	B1S2(3) := 0.0;
 	
-	PS 0.001 ;
+	PS 0.001;
 	
 	DL S0;
 	
@@ -224,34 +192,20 @@ PROCEDURE MRSt;
 	DL S4;
 
 	PS 0.02;
-
-	LC := SPOS;
-	MRESOL_P1 := ABS(ME(1,6))/ABS(2*XX*ME(1,1));
-	CRDESIGN(1) := MRESOL_P1;
-
-	dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
-
-	FPC;
-
-	R := ME(1,6)^2/(ME(1,1)*ME(1,266));  {focal plane curvature}
 ENDPROCEDURE;
 
 
 {DEFINE CHARACTERISTIC RAYS *************************}
 PROCEDURE define_rays;
-	VARIABLE IT_RAY 1;
-	VARIABLE IT_COORD 1;
-	VARIABLE TMP 1;
-
 	{Define 5 target/spectr. entrance parameters}
 	XX := 0.00025;
 	AX := .001/2.000;
-	YY := 0.00025;
+	YY := 0.0005;
 	AY := .003/2.000;
 
 	VELOCITY;
 
-	TKIN := 12.45*(1+(IENERGY-2)*DE);
+	TKIN := E0*(1+DE);
 	VELOCITY;
 
 	IF FLAG_HO=0;
@@ -297,86 +251,57 @@ PROCEDURE define_rays;
 		SR -XX/sqrt(2.0) -AX -YY/sqrt(2.0) AY 0 DE 0 0 color_code;
 		SR -XX/sqrt(2.0) -AX -YY/sqrt(2.0) -AY 0 DE 0 0 color_code;
 	ENDIF;
-
-	NRAYVEC:=1;
-	LOOP IT_RAY 1 NRAY;
-		LOOP IT_COORD 1 8;
-			VELGET RAY(IT_COORD) IT_RAY TMP;
-			RAYVECIN(NRAYVEC,IT_COORD):=TMP;
-		ENDLOOP;
-		NRAYVEC:=NRAYVEC+1;
-	ENDLOOP;
 ENDPROCEDURE;
 
 
-{PROCEDURE READ_RAY ***************************}
+{load the computed rays using some black magic and save them in RAYVECOUT}
 PROCEDURE READ_RAY;
 	VARIABLE ITRAY 1;
 	VARIABLE ITCOORD 1;
 	VARIABLE POSI 1 8;
 	VARIABLE POSF 1 8;
 	VARIABLE SAVEMAP 10000 8;
+	VARIABLE TMP 1;
 
 	SM SAVEMAP;
-	define_rays;
-	AM SAVEMAP;
 
-	LOOP ITRAY 1 NRAYVEC-1;
+	LOOP ITRAY 1 NRAY;
 		LOOP ITCOORD 1 8;
-			POSI(ITCOORD):=RAYVECIN(ITRAY,ITCOORD);
+			VELGET RAY(ITCOORD) ITRAY TMP;
+			POSI(ITCOORD):=TMP;
 		ENDLOOP;
 		POLVAL 1 SAVEMAP TWOND POSI TWOND POSF TWOND ;
 		LOOP ITCOORD 1 8;
 			RAYVECOUT(ITRAY,ITCOORD):=POSF(ITCOORD);
 		ENDLOOP;
-	ENDLOOP; 
-ENDPROCEDURE;
-
-
-{PROCEDURE FIT_FP *****************************}
-PROCEDURE FIT_FP;
-	CR;
-	define_rays;
-
-	UM;
-	MRST;
-
-	READ_RAY;
-
-	WV:=(MAXRAYVEC(1)-MINRAYVEC(1))/2;
-	WVY:=(MAXRAYVEC(3)-MINRAYVEC(3))/2;
-
-	AR MAP XX AX YY AY DE 0.000 100 RAR;
-	MRESOL_P1 := ABS(ME(1,6))/ABS(2*XX*ME(1,1));
-	gamma := 1 + CONS(ETA);
-	WVPOL:=(MAXRAYVEC(5)-MINRAYVEC(5));
-
-	time_min:= 1E12*MINRAYVEC(5)*(1+gamma)/(CONS(V0)*gamma);
-	time_max:= 1E12*MaxRAYVEC(5)*(1+gamma)/(CONS(V0)*gamma);
-
-	dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
-	denergy := ABS(EP*1000/MRESOL_P1);
-	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
-	FPDESIGN(1) := FP_tilt;
+	ENDLOOP;
+	
+	WVX := MAXRAYVEC(1)-MINRAYVEC(1);
+	WVY := MAXRAYVEC(3)-MINRAYVEC(3);
+	WVL := MAXRAYVEC(5)-MINRAYVEC(5);
 ENDPROCEDURE;
 
 
 {MAIN ROUTINE ************************************}
 PROCEDURE main;
 
+	{initialize COSY ************************************}
+	
 	OV 3 3 3; {set the calculations to 3rd order}
 	WSET 1.0E-3;
-	
-	EP := 12.45;
-	RP EP 2.00001 1; {E/MeV, Mass A, Charge z}
-	
+	FR 3; {set the fringe field model}
+
+	E0 := 12.45;
+	RP E0 2.013553213 1; {E/MeV, Mass A, Charge z}
+	gamma := 1 + CONS(ETA);
+
 	{LSYS := 0; {hide the beamline elements}
 	LCE := 0; {hide the beamline element names}}
 	LAX := 0; {hide the system size numbers}
 	{PTY 40; {show it in real space}}
-	
+
 	color_code := 9;
-		
+
 	{DEFINITIONS OF RESULTS ************************}
 	RESDEF(1) := 'DE          ';
 	RESDEF(2) := 'DE(MeV)     ';
@@ -400,152 +325,127 @@ PROCEDURE main;
 	DESIGNDEF(6) := 'y-Size(mm)         ';
 	DESIGNDEF(7) := 'Plane Length(m)         ';
 
-	FR 3;
-
-	FLAG_HO := 0;
-
-	{ENERGY LOOP *********************}
-	LOOP IENERGY 1 9;
-		DE := 0.14; {defines 9 energies, +/- 0.xxx}
-
-		ISOR(1,IENERGY) := (-DE)+(IENERGY-1)*DE/4;
-		TKIN := 12.45*(1+((-DE)+(IENERGY-1)*DE/4));
-		ISOR(2,IENERGY) := TKIN;
-		VELOCITY;
-		ISOR(3,IENERGY) := VELOC;
-
-		DE:= (-DE)+(IENERGY-1)*DE/4;
-
-		FIT_FP;
-
-		ISOR(4,IENERGY) := (MAXRAYVEC(5)+MINRAYVEC(5))/2;
-
-		ISOR(9,IENERGY) := RAYVECOUT(2,2);
-		ISOR(11,IENERGY) := RAYVECOUT(2,1);
-	ENDLOOP;
-
-	{Now run only central energy with rays within acceptance ************}
-	DE := 0;
-	FLAG_HO := 1;  {Central rays only within acceptances}
-	FIT_FP;
-	ISODESIGN(6) := 2*WVY*1000;
-	FPDESIGN(6) := 2*WVY*1000;
-
-	CR; 
-	define_rays;
+	{first, optimize the octopole to make the focal plane strait ************}
 	
+	FLAG_HO := 0;  {look only at the central ray}
+	Oct := 0.;
+	num_iterations := 0;
+	FIT Oct;
+		CR;
+		define_rays;
+		UM;
+		MRSt;
+
+		calculate_focal_plane_curvature;
+		objective := 1/FPDESIGN(2);
+		
+		num_iterations := num_iterations+1;
+	ENDFIT 1e-8 100 4 objective;
+	
+	WRITE 6 'in '&SF(num_iterations,'(I2.1)')&' iterations found optimal octopole strength (T) =' Oct;
+
+	{scan thru 9 different energies to draw the focal plane ************}
+	
+	FLAG_HO := 0;  {look at only the central ray at a given energy}
+	LOOP IENERGY 1 9;
+		DE := -0.14+(IENERGY-1)*0.14/4; {defines 9 energies, +/- 0.xxx}
+		
+		CR;
+		define_rays;
+		UM;
+		MRSt;
+		READ_RAY;
+
+		FOPR(1,IENERGY) := DE;
+		TKIN := 12.45*(1+DE);
+		FOPR(2,IENERGY) := TKIN;
+		VELOCITY;
+		FOPR(3,IENERGY) := VELOC;
+		FOPR(4,IENERGY) := (MAXRAYVEC(5)+MINRAYVEC(5))/2;
+		FOPR(9,IENERGY) := RAYVECOUT(2,2);
+		FOPR(11,IENERGY) := RAYVECOUT(2,1);
+	ENDLOOP;
+	
+	{run the final rays with the central energy and final octopole ************}
+	
+	DE := 0;
+	FLAG_HO := 1;  {look at noncentral rays}
+
+	CR;
+	define_rays;
 	UM;
 	MRSt;
-	
-	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6));
-
-	FPDESIGN(4) := EP*1000/(ABS(ME(1,6))/(2*WV));
-	FPDESIGN(5) := dtime;
-
-	MRESOL_P1 := ABS(ME(1,6))/ABS(2*XX*ME(1,1));
-	R := ME(1,6)^2/(ME(1,1)*ME(1,266));
-
-	CRDESIGN(2) := ABS(EP*1000/MRESOL_P1);
-
-	dtime := 1e12*WVPOL*(1+gamma)/(CONS(v0)*gamma);
+	READ_RAY;
 
 	LC := SPOS;
-
-	WRITE 6 'SPOS=Length Central Ray' SPOS;
-
-	ISOR(5,5) := LC;
-	ISOR(5,1) := LC-ISOR(4,1);
-	ISOR(5,2) := LC-ISOR(4,2);
-	ISOR(5,3) := LC-ISOR(4,3);
-	ISOR(5,4) := LC-ISOR(4,4);
-	ISOR(5,6) := LC-ISOR(4,6);
-	ISOR(5,7) := LC-ISOR(4,7);
-	ISOR(5,8) := LC-ISOR(4,8);
-	ISOR(5,9) := LC-ISOR(4,9);
-
+	
 	LOOP K 1 9;
-		ISOR(6,K) := 1E12*ISOR(5,K)/ISOR(3,K);
+		FOPR(5,K) := LC-FOPR(4,K);
+		FOPR(6,K) := 1E12*FOPR(5,K)/FOPR(3,K);
 	ENDLOOP;
-
 	LOOP K 1 9;
-		ISOR(7,K) := ISOR(6,K) -ISOR(6,5);
+		FOPR(7,K) := FOPR(6,K) - FOPR(6,5);
+		FOPR(8,K) := -FOPR(7,K)*FOPR(3,K)/1E12;
+		FOPR(10,K):=FOPR(8,K)*cos(FOPR(9,K));
+		FOPR(12,K):=FOPR(11,K)+FOPR(8,K)*sin(FOPR(9,K));
 	ENDLOOP;
 
-	LOOP K 1 9;
-		ISOR(8,K) := -ISOR(7,K)*ISOR(3,K)/1E12;
-	ENDLOOP;
+	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6))*180/PI;
+	FPDESIGN(1) := FP_tilt;
+	
+	FPDESIGN(4) := WVX*E0*1000/abs(ME(1,6));
+	FPDESIGN(5) := WVL*1e12*(1+gamma)/(CONS(v0)*gamma);
+	FPDESIGN(6) := WVY*1000;
 
-	LOOP K 1 9;
-		ISOR(10,K):=ISOR(8,K)*COS(ISOR(9,K));
-	ENDLOOP;
+	FPDESIGN(7) := 0.286*ME(1,6)*TAN(FP_tilt*PI/180);
+	calculate_focal_plane_curvature;
+	calculate_focal_plane_bend;
 
-	LOOP K 1 9;
-		ISOR(12,K):=ISOR(11,K)+ISOR(8,K)*SIN(ISOR(9,K));
-	ENDLOOP;
-
-	{***************Set identical ISOR and FOPR parameters}
-	N := 2;
-	LOOP M 1 12;
-		FOPR(M,N) := ISOR(M,N);
-	ENDLOOP;
-
-	FOPR(1,1) := ISOR(1,1);
-	FOPR(1,3) := ISOR(1,3);
-	FOPR(2,1) := ISOR(2,1);
-	FOPR(2,3) := ISOR(2,3);
-	FOPR(3,1) := ISOR(3,1);
-	FOPR(3,3) := ISOR(3,3);
-
-	{FP length FPDESIGN(7) calculated as follows *************}
-	FOPR(12,1) := ME(1,6)*-0.143;
-	FOPR(12,3) := ME(1,6)*0.143;
-	FOPR(10,1) := FOPR(12,1)*TAN(FPDESIGN(1)*PI/180);
-	FOPR(10,3) := FOPR(12,3)*TAN(FPDESIGN(1)*PI/180);
-	FPDESIGN(7) := SQRT((FOPR(10,1)-FOPR(10,3))^2+(FOPR(12,1)-FOPR(12,3))^2);
-
-	Z1 := ISOR(10,1);
-	Z2 := ISOR(10,3);
-	X1 := ISOR(12,1);
-	X2 := ISOR(12,3);
-
-	A_COEFF := X2-X1;
-	B_COEFF := Z2-Z1;
-	C_COEFF := A_COEFF*Z1-B_COEFF*X1;
-	P_DIST := +C_COEFF/SQRT(A_COEFF^2+B_COEFF^2);
-	DESIGN(4) := P_DIST;
-	ISODESIGN(3) := 1000*P_DIST;
-	ISODESIGN(1) := 90+ATAN(-A_COEFF/B_COEFF)*180/PI;
+	Z1 := FOPR(10,1);
+	Z2 := FOPR(10,3);
+	X1 := FOPR(12,1);
+	X2 := FOPR(12,3);
+	ISODESIGN(1) := 90+atan(-(X2-X1)/(Z2-Z1))*180/PI;
+	numerator := (X2-X1)*Z1-(Z2-Z1)*X1;
+	denominator := sqrt((X2-X1)^2+(Z2-Z1)^2);
+	ISODESIGN(3) := 1000*numerator/denominator;
 
 	ISODESIGN(4) := FPDESIGN(4);
 	ISODESIGN(5) := FPDESIGN(5);
-
-	{Calc. signed p-dist}
-	FPDESIGN(3) := 1000*0.5*FPDESIGN(7);
-	IF ABS(FPDESIGN(2))>ABS(FPDESIGN(7));
-		FPDESIGN(3) := 1000*(ABS(FPDESIGN(2)) - SQRT(FPDESIGN(2)*FPDESIGN(2)-0.25*FPDESIGN(7)^2));
-	ENDIF;
-	IF FPDESIGN(2)<0;
-		FPDESIGN(3) := -FPDESIGN(3);
-	ENDIF;
-
-	ISODESIGN(7) := SQRT((ISOR(10,1)-ISOR(10,3))^2+(ISOR(12,1)-ISOR(12,3))^2);
-	ISODESIGN(2) := ISODESIGN(7)^2/(8*ISODESIGN(3)/1000)+ISODESIGN(3)/2000;
-
-	WRITE 6 '*****************************'; 
-
-	LOOP N 1 7;
-		WRITE 6 'N'&SF(N,'(I2.1)')&' FPDESIGN '&DESIGNDEF(N)&SF(FPDESIGN(N),'(F16.5)');
-	ENDLOOP;
-	WRITE 6 '*****************************'; 
-	LOOP N 1 7;
-		WRITE 6 'N'&SF(N,'(I2.1)')&' ISODESIGN '&DESIGNDEF(N)&SF(ISODESIGN(N),'(F16.5)');
-	ENDLOOP;
-
-	WRITE 6 'Start FP calculations*******************************';
-
-	FLAG_HO := 1;  {Central rays only within acceptances}
+	ISODESIGN(6) := FPDESIGN(6);
 	
-	{now make a pretty multicolor picture}
+	ISODESIGN(7) := sqrt((FOPR(10,1)-FOPR(10,3))^2+(FOPR(12,1)-FOPR(12,3))^2);
+	ISODESIGN(2) := ISODESIGN(7)^2/(8*ISODESIGN(3)/1000)+ISODESIGN(3)/2000;
+	
+	{print out all of the results ********************}
+
+	LOOP M 4 12;
+		LOOP N 1 9;
+			WRITE 6 'E='&SF(FOPR(2,N),'(F6.3)')&'MeV: FOPR '&RESDEF(M)&SF(FOPR(M,N),'(F16.5)');
+		ENDLOOP;
+	ENDLOOP;
+
+	WRITE 6 '*****************************'; 
+	LOOP N 1 7;
+		WRITE 6 'FPDESIGN '&DESIGNDEF(N)&SF(FPDESIGN(N),'(F16.5)');
+	ENDLOOP;
+	WRITE 6 '*****************************'; 
+	LOOP N 1 7;
+		WRITE 6 'ISODESIGN '&DESIGNDEF(N)&SF(ISODESIGN(N),'(F16.5)');
+	ENDLOOP;
+	WRITE 6 '*****************************'; 
+
+	WRITE 6 'L central ray (m)   = '&SF(LC,'(F11.5)');
+	WRITE 6 'Dispersion (mm/keV) = '&SF(ME(1,6)/(E0*cos(FP_tilt)),'(F11.5)');
+	WRITE 6 'Time skew (ps/keV)  = '&SF((ME(5,6)+ME(1,6)*tan(FP_tilt))*1e12*(1+gamma)/(CONS(v0)*gamma)/E0/1e3,'(F11.5)');
+	
+	WRITE 6 'mapping matrix:';
+	
+	PM 6;
+	
+	{make a pretty multicolor picture ***************}
+
+	FLAG_HO := 1;
 	CR;
 	DE := -0.01;
 	color_code := 3;
@@ -557,26 +457,13 @@ PROCEDURE main;
 	color_code := 5;
 	define_rays;
 	UM;
-	{BP;}
+	BP;
 	MRSt;
-	{EP;}
+	EP;
 
-	{PG -1 -2; {on GRAPHICS screen}
+	PG -1 -2; {on GRAPHICS screen
 	PP -10 0. 0.; {pic001.ps}
 	PP -10 0. 90.; {pic002.ps}}
-	
-	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6));
-
-	WVY := (MAXRAYVEC(3)-MINRAYVEC(3));
-
-	gamma := 1 + CONS(ETA);
-	WVPOL:=(MAXRAYVEC(5)-MINRAYVEC(5));
-
-	WRITE 6 'FP Tilt (deg) =       '&SF(FP_tilt*180/PI,'(F11.5)');
-	WRITE 6 'Dispersion (mm/keV) = '&SF(ME(1,6)/(EP*cos(FP_tilt)),'(F11.5)');
-	WRITE 6 'Time skew (ps/keV) =  '&SF((ME(5,6)+ME(1,6)*tan(FP_tilt))*1e12*(1+gamma)/(CONS(v0)*gamma)/EP/1e3,'(F11.5)');
-
-	FPC;
 
 ENDPROCEDURE;
 
