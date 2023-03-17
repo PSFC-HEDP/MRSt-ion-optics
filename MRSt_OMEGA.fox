@@ -53,6 +53,8 @@ VARIABLE TKIN 1;
 
 {various other variables ************************}
 
+VARIABLE streamlined_mode 1;
+
 VARIABLE num_iterations 1;
 VARIABLE objective 1;
 VARIABLE FP_tilt 1; {Focal plane tilt}
@@ -288,6 +290,8 @@ ENDPROCEDURE;
 {MAIN ROUTINE ************************************}
 PROCEDURE main;
 
+	streamlined_mode := 0;
+
 	{initialize COSY ************************************}
 
 	OV 3 3 3; {set the calculations to 3rd order}
@@ -421,13 +425,18 @@ PROCEDURE main;
 	ISODESIGN(2) := ISODESIGN(7)^2/(8*ISODESIGN(3)/1000)+ISODESIGN(3)/2000;
 
 	{print out all of the results ********************}
-{
-	LOOP M 4 12;
-		LOOP N 1 9;
-			WRITE 6 'E='&SF(FOPR(2,N),'(F6.3)')&'MeV: FOPR '&RESDEF(M)&SF(FOPR(M,N),'(F16.5)');
+
+	IF streamlined_mode=0;
+		LOOP M 4 12;
+			LOOP N 1 9;
+				WRITE 6 'E='&SF(FOPR(2,N),'(F6.3)')&'MeV: FOPR '&RESDEF(M)&SF(FOPR(M,N),'(F16.5)');
+			ENDLOOP;
 		ENDLOOP;
-	ENDLOOP;
-}
+		
+		WRITE 6 'mapping matrix:';
+		PM 6;
+	ENDIF;
+
 	WRITE 6 '*****************************'; 
 	LOOP N 1 7;
 		WRITE 6 'FPDESIGN '&DESIGNDEF(N)&SF(FPDESIGN(N),'(F16.5)');
@@ -439,34 +448,33 @@ PROCEDURE main;
 	WRITE 6 '*****************************'; 
 
 	WRITE 6 'L central ray (m)   = '&SF(LC,'(F11.5)');
-	WRITE 6 'Dispersion (mm/keV) = '&SF(ME(1,6)/(E0*cos(FP_tilt)),'(F11.5)');
-	WRITE 6 'Time skew (ps/keV)  = '&SF((ME(5,6)+ME(1,6)*tan(FP_tilt))*1e12*(1+gamma)/(CONS(v0)*gamma)/E0/1e3,'(F11.5)');
-{
-	WRITE 6 'mapping matrix:';
-	PM 6;
+	WRITE 6 'Dispersion (mm/keV) = '&SF(ME(1,6)/(E0*cos(FP_tilt*PI/180)),'(F11.5)');
+	WRITE 6 'Time skew (ps/keV)  = '&SF((ME(5,6)+ME(1,6)*tan(FP_tilt*PI/180))*1e12*(1+gamma)/(CONS(v0)*gamma)/E0/1e3,'(F11.5)');
 
 	{make a pretty multicolor picture ***************}
 
-	FLAG_HO := 1;
-	CR;
-	DE := -0.01;
-	color_code := 3;
-	define_rays;
-	DE := 0.01;
-	color_code := 2;
-	define_rays;
-	DE := 0.0;
-	color_code := 5;
-	define_rays;
-	UM;
-	BP;
-	MRSt;
-	EP;
+	IF streamlined_mode=0;
+		FLAG_HO := 1;
+		CR;
+		DE := -0.01;
+		color_code := 3;
+		define_rays;
+		DE := 0.01;
+		color_code := 2;
+		define_rays;
+		DE := 0.0;
+		color_code := 5;
+		define_rays;
+		UM;
+		BP;
+		MRSt;
+		EP;
 
-	PG -1 -2; {on GRAPHICS screen}
-	PP -10 0. 0.; {pic001.ps}
-	PP -10 0. 90.; {pic002.ps}
-}
+		PG -1 -2; {on GRAPHICS screen}
+		PP -10 0. 0.; {pic001.ps}
+		PP -10 0. 90.; {pic002.ps}
+	ENDIF;
+
 ENDPROCEDURE;
 
 

@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 from scipy import optimize
 
 
-FILE_TO_OPTIMIZE = "MRSt_OMEGA"
-PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
-# FILE_TO_OPTIMIZE = "MRSt_OMEGA_quadratic"
-# PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "angle", "u1", "u2"]
 # FILE_TO_OPTIMIZE = "MRSt_OMEGA_linear"
 # PARAMETER_NAMES = ["Q1", "Q2", "S1", "S2", "angle", "u1", "u2"]
+# FILE_TO_OPTIMIZE = "MRSt_OMEGA_quadratic"
+# PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "angle", "u1", "u2"]
+FILE_TO_OPTIMIZE = "MRSt_OMEGA"
+PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
 
 with open(f'{FILE_TO_OPTIMIZE}.fox', 'r') as f:
 	script = f.read()
@@ -40,14 +40,14 @@ def optimize_design():
 
 def system_quality(parameters):
 	output = run_cosy(parameters)
-	time_skew = float(re.search(r"Time skew \(ps/keV\) += +([-.\d]+)", output).group(1))
-	tof_width = float(re.search(r"FPDESIGN Time Resol\.\(ps\) +([-.\d]+)", output).group(1))
-	energy_width = float(re.search(r"FPDESIGN HO Resol\.RAY\(keV\) +([-.\d]+)", output).group(1))
+	time_skew = get_cosy_output(r"Time skew \(ps/keV\) += +", output)
+	tof_width = get_cosy_output(r"L central ray \(m\) += +", output)
+	energy_width = get_cosy_output(r"FPDESIGN HO Resol\.RAY\(keV\) +", output)
 	time_resolution = sqrt(tof_width**2 + (energy_width*time_skew)**2)
 	print(f"this design has a time resolution of {time_resolution:.1f} ps and an energy resolution of {energy_width:.1f} keV")
 
 	quality = 100*(time_resolution/100 + energy_width/400)
-	print(f"{parameters} -> {quality:.2f}ps")
+	print(f"{parameters} -> {time_resolution}ps + {energy_width}keV = {quality:.2f}ps")
 	return quality
 
 
@@ -55,8 +55,9 @@ def run_cosy(parameters):
 	""" get the observable values at these perturbations """
 	parameters = tuple(parameters)
 	if parameters not in cache or "### ERRORS IN CODE" in cache[parameters]:
+		modified_script = re.sub(r"streamlined_mode := \d;", "streamlined_mode := 1;", script)
 		for i, name in enumerate(PARAMETER_NAMES):
-			modified_script = re.sub(rf"{name} := [-.\d]+;", f"{name} := {parameters[i]};", script)
+			modified_script = re.sub(rf"{name} := [-.\d]+;", f"{name} := {parameters[i]};", modified_script)
 
 		with open('temp.fox', 'w') as g:
 			g.write(modified_script)
@@ -81,11 +82,27 @@ def run_cosy(parameters):
 	return cache[parameters]
 
 
+def get_cosy_output(pattern, output):
+	match = re.search(pattern + r"([-.\d*]+)", output)
+	if match is None:
+		print(output)
+		raise ValueError(f"couldn’t find /{pattern}/ in output")
+	number = match.group(1)
+	if "***" in number:
+		return inf
+	else:
+		return float(number)
+
+
 def get_defaults():
 	values = []
 	bounds = []
 	for name in PARAMETER_NAMES:
-		values.append(float(re.search(rf"{name} := ([-.\d]+);", script).group(1)))
+		try:
+			values.append(float(re.search(rf"{name} := ([-.\de]+);", script).group(1)))
+		except AttributeError:
+			print(script)
+			raise RuntimeError(f"where is {name}?")
 		if name.startswith("S"):
 			bounds.append((0, 2.0))
 		elif name.startswith("angle"):
@@ -102,6 +119,7 @@ def simplexify(x0, ranges):
 	for i in range(len(x0)):
 		vertices.append(np.array(x0))
 		vertices[-1][i] += (ranges[i][1] - ranges[i][0])/10
+	return np.array(vertices)
 
 
 if __name__ == '__main__':
