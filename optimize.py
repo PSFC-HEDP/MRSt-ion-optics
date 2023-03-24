@@ -43,8 +43,11 @@ def system_quality(parameters):
 	energy_width = get_cosy_output(r"FPDESIGN HO Resol\.RAY\(keV\) +", output)
 	time_resolution = sqrt(tof_width**2 + (energy_width*time_skew)**2)
 
-	quality = 100*(time_resolution/100 + energy_width/400)
-	print(f"{parameters} -> {time_resolution}ps + {energy_width}keV = {quality:.2f}ps")
+	quality = 100*(time_resolution/100 + energy_width/500)
+	print("[", end="")
+	for parameter in parameters:
+		print(f"{parameter:.8g},", end="")
+	print(f"]\n\t->   {time_resolution:.2f}ps + {energy_width:.2f}keV = {quality:.2f}ps")
 	return quality
 
 

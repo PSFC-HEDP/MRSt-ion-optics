@@ -78,54 +78,51 @@ VARIABLE FLAG_HO 1;
 VARIABLE DE 1;
 
 
-{RETURNS THE MAXIMUM OF THE Ith COORDINATE OF RAYVEC}
-FUNCTION MAXRAYVEC I;
-	VARIABLE IT_RAY 1;
-
-	MAXRAYVEC:=-1E10;
-	LOOP IT_RAY 1 NRAY;
-		IF RAYVECOUT(IT_RAY,I)>MAXRAYVEC;
-			MAXRAYVEC:=RAYVECOUT(IT_RAY,I);
-		ENDIF;
-	ENDLOOP;
-ENDFUNCTION;
-
-
-{RETURNS THE MINIMUM OF THE Ith COORDINATE OF RAYVEC}
-FUNCTION MINRAYVEC I;
-	VARIABLE IT_RAY 1;
-	MINRAYVEC:=1E10;
-	LOOP IT_RAY 1 NRAY;
-		IF RAYVECOUT(IT_RAY,I)<MINRAYVEC;
-			MINRAYVEC:=RAYVECOUT(IT_RAY,I);
-		ENDIF;
-	ENDLOOP;
-ENDFUNCTION;
-
-
 { set VELOC equal to the central velocity}
 PROCEDURE VELOCITY;
 	VELOC := SQRT(1-1/(1+TKIN/(m0*AMUMEV))^2)*CLIGHT;
 ENDPROCEDURE;
 
 
-{Focal Plane Curve R, a neq 0 deg, Fp not perpendicular *******************************}
-PROCEDURE calculate_focal_plane_curvature;
-	VARIABLE R 1;
-	R := (ME(1,6)^2+ME(1,1)^2*ME(1,26)^2)^1.5;
-	R := R/(ME(1,1)*(ME(1,6)*ME(1,266)-ME(1,26)*(ME(1,66)+2*ME(1,6)*ME(1,1)*ME(2,26))));
-	FPDESIGN(2) := R;
+{define a ray given a position on the foil and a position at the aperture}
+PROCEDURE define_ray x_foil x_aperture y_foil y_aperture d_energy color;
+	SR x_foil (x_aperture-x_foil)/S0 y_foil (y_aperture-y_foil)/S0 0 d_energy 0 0 color;
 ENDPROCEDURE;
 
 
-{Calc. signed p-dist}
-PROCEDURE calculate_focal_plane_bend;
-	FPDESIGN(3) := 1000*0.5*FPDESIGN(7);
-	IF ABS(FPDESIGN(2))>ABS(FPDESIGN(7));
-		FPDESIGN(3) := 1000*(ABS(FPDESIGN(2)) - SQRT(FPDESIGN(2)*FPDESIGN(2)-0.25*FPDESIGN(7)^2));
+{DEFINE CHARACTERISTIC RAYS *************************}
+PROCEDURE define_rays d_energy color;
+	VARIABLE foil_x_radius 1;
+	VARIABLE foil_y_radius 1;
+	VARIABLE aperture_half_width 1;
+	VARIABLE aperture_half_height 1;
+	VARIABLE I 1;
+	VARIABLE J 1;
+	VARIABLE K 1;
+
+	foil_x_radius := 0.00025;
+	foil_y_radius := 0.00050;
+	aperture_half_width := .001;
+	aperture_half_height := .003;
+
+	VELOCITY;
+
+	TKIN := E0*(1+d_energy);
+	VELOCITY;
+
+	IF FLAG_HO=0;
+		define_ray 0 0 0 0 d_energy color;
 	ENDIF;
-	IF FPDESIGN(2)<0;
-		FPDESIGN(3) := -FPDESIGN(3);
+
+	IF FLAG_HO>0;
+		LOOP I -1 1;
+			LOOP J -1 1;
+				define_ray 0 I*aperture_half_width 0 J*aperture_half_height d_energy color;
+				LOOP K 0 7;
+					define_ray foil_x_radius*COS(K/4*PI) I*aperture_half_width foil_y_radius*SIN(K/4*PI) J*aperture_half_height d_energy color;
+				ENDLOOP;
+			ENDLOOP;
+		ENDLOOP;
 	ENDIF;
 ENDPROCEDURE;
 
@@ -133,19 +130,6 @@ ENDPROCEDURE;
 {MRSt geometrical Layout *******************************}
 PROCEDURE MRSt;
 	VARIABLE FP_depth 1;
-	
-	{set system parameters}
-	Q1 := 0.000761766;
-	Q2 := 0.0254320;
-	H1 := 0.0000115991;
-	H2 := 0.00008;
-	S0 := 2.00;
-	S1 := 0.1590;
-	S2 := 0.6332;
-	S3 := 0.6315;
-	angle := 62.7658;
-	u1 := -0.00317;
-	u2 := 43.52257;
 
 	{field profile coefficients}
 	B1N(1) := 0.0;
@@ -196,49 +180,6 @@ PROCEDURE MRSt;
 ENDPROCEDURE;
 
 
-{define a ray given a position on the foil and a position at the aperture}
-PROCEDURE define_ray x_foil x_aperture y_foil y_aperture d_energy color;
-	SR x_foil (x_aperture-x_foil)/S0 y_foil (y_aperture-y_foil)/S0 0 d_energy 0 0 color;
-ENDPROCEDURE;
-
-
-{DEFINE CHARACTERISTIC RAYS *************************}
-PROCEDURE define_rays d_energy color;
-	VARIABLE foil_x_radius 1;
-	VARIABLE foil_y_radius 1;
-	VARIABLE aperture_half_width 1;
-	VARIABLE aperture_half_height 1;
-	VARIABLE I 1;
-	VARIABLE J 1;
-	VARIABLE K 1;
-
-	foil_x_radius := 0.00025;
-	foil_y_radius := 0.00050;
-	aperture_half_width := .001;
-	aperture_half_height := .003;
-
-	VELOCITY;
-
-	TKIN := E0*(1+d_energy);
-	VELOCITY;
-
-	IF FLAG_HO=0;
-		define_ray 0 0 0 0 d_energy color;
-	ENDIF;
-
-	IF FLAG_HO>0;
-		LOOP I -1 1;
-			LOOP J -1 1;
-				define_ray 0 I*aperture_half_width 0 J*aperture_half_height d_energy color;
-				LOOP K 0 7;
-					define_ray foil_x_radius*COS(K/4*PI) I*aperture_half_width foil_y_radius*SIN(K/4*PI) J*aperture_half_height d_energy color;
-				ENDLOOP;
-			ENDLOOP;
-		ENDLOOP;
-	ENDIF;
-ENDPROCEDURE;
-
-
 {load the computed rays using some ~~black magic~~undocumented function and save them in RAYVECOUT}
 PROCEDURE READ_RAY;
 	VARIABLE IT_RAY 1;
@@ -251,6 +192,53 @@ PROCEDURE READ_RAY;
 			RAYVECOUT(IT_RAY,IT_COORD):=TMP;
 		ENDLOOP;
 	ENDLOOP;
+ENDPROCEDURE;
+
+
+{RETURNS THE MAXIMUM OF THE Ith COORDINATE OF RAYVEC}
+FUNCTION MAXRAYVEC I;
+	VARIABLE IT_RAY 1;
+
+	MAXRAYVEC:=-1E10;
+	LOOP IT_RAY 1 NRAY;
+		IF RAYVECOUT(IT_RAY,I)>MAXRAYVEC;
+			MAXRAYVEC:=RAYVECOUT(IT_RAY,I);
+		ENDIF;
+	ENDLOOP;
+ENDFUNCTION;
+
+
+{RETURNS THE MINIMUM OF THE Ith COORDINATE OF RAYVEC}
+FUNCTION MINRAYVEC I;
+	VARIABLE IT_RAY 1;
+	MINRAYVEC:=1E10;
+	LOOP IT_RAY 1 NRAY;
+		IF RAYVECOUT(IT_RAY,I)<MINRAYVEC;
+			MINRAYVEC:=RAYVECOUT(IT_RAY,I);
+		ENDIF;
+	ENDLOOP;
+ENDFUNCTION;
+
+
+{calculate focal plane’s radius of curvature}
+PROCEDURE calculate_focal_plane_curvature;
+	VARIABLE numerator 1;
+	VARIABLE denominator 1;
+	numerator := (ME(1,6)^2+ME(1,1)^2*ME(1,26)^2)^1.5;
+	denominator := ME(1,1)*(ME(1,6)*ME(1,266)-ME(1,26)*(ME(1,66)+2*ME(1,6)*ME(1,1)*ME(2,26)));
+	FPDESIGN(2) := numerator/denominator;
+ENDPROCEDURE;
+
+
+{calculate focal plane’s signed p-dist (its maximum distance from the detector)}
+PROCEDURE calculate_focal_plane_bend;
+	FPDESIGN(3) := 1000*0.5*FPDESIGN(7);
+	IF ABS(FPDESIGN(2))>ABS(FPDESIGN(7));
+		FPDESIGN(3) := 1000*(ABS(FPDESIGN(2)) - SQRT(FPDESIGN(2)*FPDESIGN(2)-0.25*FPDESIGN(7)^2));
+	ENDIF;
+	IF FPDESIGN(2)<0;
+		FPDESIGN(3) := -FPDESIGN(3);
+	ENDIF;
 ENDPROCEDURE;
 
 
@@ -300,6 +288,16 @@ PROCEDURE main;
 	
 	{set system parameters}
 	S0 := 2.00;
+	S1 := 0.1590;
+	S2 := 0.6332;
+	S3 := 0.6315;
+	angle := 62.7658;
+	u1 := -0.00317;
+	u2 := 43.52257;
+	Q1 := 0.000761766;
+	Q2 := 0.0254320;
+	H1 := 0.0000115991;
+	H2 := 0.00008;
 
 	{first, optimize the octopole to make the focal plane strait ************}
 
@@ -322,24 +320,26 @@ PROCEDURE main;
 
 	{scan thru 9 different energies to draw the focal plane ************}
 
-	FLAG_HO := 0;  {look at only the central ray at a given energy}
-	LOOP IENERGY 1 9;
-		DE := -0.14+(IENERGY-1)*0.14/4; {defines 9 energies, +/- 0.xxx}
-	
-		CR;
-		define_rays DE 0;
-		UM;
-		MRSt;
-		READ_RAY;
+	IF streamlined_mode=0;
+		FLAG_HO := 0;  {look at only the central ray at a given energy}
+		LOOP IENERGY 1 9;
+			DE := -0.14+(IENERGY-1)*0.14/4; {defines 9 energies, +/- 0.xxx}
+		
+			CR;
+			define_rays DE 0;
+			UM;
+			MRSt;
+			READ_RAY;
 
-		FOPR(1,IENERGY) := DE;
-		FOPR(2,IENERGY) := E0*(1+DE);
-		VELOCITY;
-		FOPR(3,IENERGY) := VELOC;
-		FOPR(4,IENERGY) := (MAXRAYVEC(5)+MINRAYVEC(5))/2;
-		FOPR(9,IENERGY) := RAYVECOUT(2,2);  {note that we’re using ray 2, not ray 1, because ray 1 is *always* the central ray}
-		FOPR(11,IENERGY) := RAYVECOUT(2,1);
-	ENDLOOP;
+			FOPR(1,IENERGY) := DE;
+			FOPR(2,IENERGY) := E0*(1+DE);
+			VELOCITY;
+			FOPR(3,IENERGY) := VELOC;
+			FOPR(4,IENERGY) := (MAXRAYVEC(5)+MINRAYVEC(5))/2;
+			FOPR(9,IENERGY) := RAYVECOUT(2,2);  {note that we’re using ray 2, not ray 1, because ray 1 is *always* the central ray}
+			FOPR(11,IENERGY) := RAYVECOUT(2,1);
+		ENDLOOP;
+	ENDIF;
 
 	{run the final rays with the central energy and final octopole ************}
 
@@ -378,24 +378,25 @@ PROCEDURE main;
 	calculate_focal_plane_curvature;
 	calculate_focal_plane_bend;
 
-	Z1 := FOPR(10,1);
-	Z2 := FOPR(10,3);
-	X1 := FOPR(12,1);
-	X2 := FOPR(12,3);
-	ISODESIGN(1) := 90+atan(-(X2-X1)/(Z2-Z1))*180/PI;
-	numerator := (X2-X1)*Z1-(Z2-Z1)*X1;
-	denominator := sqrt((X2-X1)^2+(Z2-Z1)^2);
-	ISODESIGN(3) := 1000*numerator/denominator;
+	IF streamlined_mode=0;
+		Z1 := FOPR(10,1);
+		Z2 := FOPR(10,3);
+		X1 := FOPR(12,1);
+		X2 := FOPR(12,3);
+		ISODESIGN(1) := 90+atan(-(X2-X1)/(Z2-Z1))*180/PI;
+		numerator := (X2-X1)*Z1-(Z2-Z1)*X1;
+		denominator := sqrt((X2-X1)^2+(Z2-Z1)^2);
+		ISODESIGN(3) := 1000*numerator/denominator;
 
-	ISODESIGN(4) := FPDESIGN(4);
-	ISODESIGN(5) := FPDESIGN(5);
-	ISODESIGN(6) := FPDESIGN(6);
+		ISODESIGN(4) := FPDESIGN(4);
+		ISODESIGN(5) := FPDESIGN(5);
+		ISODESIGN(6) := FPDESIGN(6);
 
-	ISODESIGN(7) := sqrt((FOPR(10,1)-FOPR(10,3))^2+(FOPR(12,1)-FOPR(12,3))^2);
-	ISODESIGN(2) := ISODESIGN(7)^2/(8*ISODESIGN(3)/1000)+ISODESIGN(3)/2000;
+		ISODESIGN(7) := sqrt((FOPR(10,1)-FOPR(10,3))^2+(FOPR(12,1)-FOPR(12,3))^2);
+		ISODESIGN(2) := ISODESIGN(7)^2/(8*ISODESIGN(3)/1000)+ISODESIGN(3)/2000;
+	ENDIF;
 
 	{print out all of the results ********************}
-
 	IF streamlined_mode=0;
 		LOOP M 4 12;
 			LOOP N 1 9;
