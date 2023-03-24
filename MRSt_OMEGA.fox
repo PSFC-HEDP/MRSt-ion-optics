@@ -28,23 +28,16 @@ VARIABLE u2 1;       {dipole1 exit angle}
 
 {START VARIABLES FOR RAY DEFINITION*********************}
 
-VARIABLE XX 1;       {Source size in X}
-VARIABLE AX 1;       {Half-emission angle in X-Z (bending) plane}
-VARIABLE YY 1;       {Source size in Y}
-VARIABLE AY 1;       {Half-emission angle in Y-Z (non-bending) plane}
-
-VARIABLE DE 1;       {current dimensionless ray energy}
-VARIABLE color_code 1; {current ray display color}
-
-VARIABLE E0 1;       {ion energy}
+VARIABLE E0 1;       {ion energy in MeV}
+VARIABLE m0 1;       {ion mass in Da}
 VARIABLE gamma 1;    {used for r5 scaling}
 
 {START VARIABLES FOR READ RAY***************************}
 
 VARIABLE WVX 1;       {HO width signal distri at FP}
-VARIABLE WVY 1;      {VERTICAL IMAGE SIZE}  
+VARIABLE WVY 1;       {VERTICAL IMAGE SIZE}  
 VARIABLE WVL 1;       {POLVAL EQUIVALENT TO WVX}
-VARIABLE LC 1;       {Length of central ray}
+VARIABLE LC 1;        {Length of central ray}
 
 {VARIABLE FOR VELOCITY ******************************}
 
@@ -82,16 +75,17 @@ VARIABLE RESDEF 12 20;
 VARIABLE DESIGNDEF 18 10;
 
 VARIABLE FLAG_HO 1;
+VARIABLE DE 1;
 
 
 {RETURNS THE MAXIMUM OF THE Ith COORDINATE OF RAYVEC}
 FUNCTION MAXRAYVEC I;
-	VARIABLE ITRAY 1;
+	VARIABLE IT_RAY 1;
 
 	MAXRAYVEC:=-1E10;
-	LOOP ITRAY 1 NRAY;
-		IF RAYVECOUT(ITRAY,I)>MAXRAYVEC;
-			MAXRAYVEC:=RAYVECOUT(ITRAY,I);
+	LOOP IT_RAY 1 NRAY;
+		IF RAYVECOUT(IT_RAY,I)>MAXRAYVEC;
+			MAXRAYVEC:=RAYVECOUT(IT_RAY,I);
 		ENDIF;
 	ENDLOOP;
 ENDFUNCTION;
@@ -99,21 +93,19 @@ ENDFUNCTION;
 
 {RETURNS THE MINIMUM OF THE Ith COORDINATE OF RAYVEC}
 FUNCTION MINRAYVEC I;
-	VARIABLE ITRAY 1;
+	VARIABLE IT_RAY 1;
 	MINRAYVEC:=1E10;
-	LOOP ITRAY 1 NRAY;
-		IF RAYVECOUT(ITRAY,I)<MINRAYVEC;
-			MINRAYVEC:=RAYVECOUT(ITRAY,I);
+	LOOP IT_RAY 1 NRAY;
+		IF RAYVECOUT(IT_RAY,I)<MINRAYVEC;
+			MINRAYVEC:=RAYVECOUT(IT_RAY,I);
 		ENDIF;
 	ENDLOOP;
 ENDFUNCTION;
 
 
-{ set VELOC equal to }
+{ set VELOC equal to the central velocity}
 PROCEDURE VELOCITY;
-	VARIABLE A_DEUT 1; {DEUTERON MASS IN AMU} 
-	A_DEUT := 2.013553213;
-	VELOC := SQRT(1-1/(1+TKIN/(AMUMEV*A_DEUT))^2)*CLIGHT;
+	VELOC := SQRT(1-1/(1+TKIN/(m0*AMUMEV))^2)*CLIGHT;
 ENDPROCEDURE;
 
 
@@ -141,7 +133,8 @@ ENDPROCEDURE;
 {MRSt geometrical Layout *******************************}
 PROCEDURE MRSt;
 	VARIABLE FP_depth 1;
-
+	
+	{set system parameters}
 	Q1 := 0.000761766;
 	Q2 := 0.0254320;
 	H1 := 0.0000115991;
@@ -154,15 +147,18 @@ PROCEDURE MRSt;
 	u1 := -0.00317;
 	u2 := 43.52257;
 
+	{field profile coefficients}
 	B1N(1) := 0.0;
 	B1N(2) := 0.0;
 	B1N(3) := 0.0;
 
-	B1S1(1) := TAN(u1*3.14159265359/180);
+	{entrance plane coefficients}
+	B1S1(1) := TAN(u1*PI/180);
 	B1S1(2) := 0.0;
 	B1S1(3) := 0.0;
 
-	B1S2(1) := TAN(u2*3.14159265359/180);
+	{exit plane coefficients}
+	B1S2(1) := TAN(u2*PI/180);
 	B1S2(2) := 0.0;
 	B1S2(3) := 0.0;
 
@@ -200,90 +196,61 @@ PROCEDURE MRSt;
 ENDPROCEDURE;
 
 
+{define a ray given a position on the foil and a position at the aperture}
+PROCEDURE define_ray x_foil x_aperture y_foil y_aperture d_energy color;
+	SR x_foil (x_aperture-x_foil)/S0 y_foil (y_aperture-y_foil)/S0 0 d_energy 0 0 color;
+ENDPROCEDURE;
+
+
 {DEFINE CHARACTERISTIC RAYS *************************}
-PROCEDURE define_rays;
-	{Define 5 target/spectr. entrance parameters}
-	XX := 0.00025;
-	AX := .001/2.000;
-	YY := 0.0005;
-	AY := .003/2.000;
+PROCEDURE define_rays d_energy color;
+	VARIABLE foil_x_radius 1;
+	VARIABLE foil_y_radius 1;
+	VARIABLE aperture_half_width 1;
+	VARIABLE aperture_half_height 1;
+	VARIABLE I 1;
+	VARIABLE J 1;
+	VARIABLE K 1;
+
+	foil_x_radius := 0.00025;
+	foil_y_radius := 0.00050;
+	aperture_half_width := .001;
+	aperture_half_height := .003;
 
 	VELOCITY;
 
-	TKIN := E0*(1+DE);
+	TKIN := E0*(1+d_energy);
 	VELOCITY;
 
 	IF FLAG_HO=0;
-		SR 0 0 0 0 0 DE 0 0 9;
+		define_ray 0 0 0 0 d_energy color;
 	ENDIF;
 
 	IF FLAG_HO>0;
-		SR 0 AX 0 0 0 DE 0 0 color_code;
-		SR 0 0.5*AX 0 0 0 DE 0 0 color_code;
-		SR 0 0 0 0 0 DE 0 0 color_code;
-		SR 0 -0.5*AX 0 0 0 DE 0 0 color_code;
-		SR 0 -AX 0 0 0 DE 0 0 color_code;
-
-		SR XX 0 0 0 0 DE 0 0 color_code;
-		SR 0.5*XX 0 0 0 0 DE 0 0 color_code;
-		SR -0.5*XX 0 0 0 0 DE 0 0 color_code;
-		SR -XX 0 0 0 0 DE 0 0 color_code;
-
-		SR 0 0 0 AY 0 DE 0 0 color_code;
-		SR 0 0 0 0.5*AY 0 DE 0 0 color_code;
-		SR 0 0 0 -0.5*AY 0 DE 0 0 color_code;
-		SR 0 0 0 -AY 0 DE 0 0 color_code;
-
-		SR 0 0 YY 0 0 DE 0 0 color_code;
-		SR 0 0 0.5*YY 0 0 DE 0 0 color_code;
-		SR 0 0 -0.5*YY 0 0 DE 0 0 color_code;
-		SR 0 0 YY 0 0 DE 0 0 color_code;
-
-		SR XX/sqrt(2.0) AX YY/sqrt(2.0) AY 0 DE 0 0 color_code;
-		SR XX/sqrt(2.0) AX YY/sqrt(2.0) -AY 0 DE 0 0 color_code;
-		SR XX/sqrt(2.0) AX -YY/sqrt(2.0) AY 0 DE 0 0 color_code;
-		SR XX/sqrt(2.0) AX -YY/sqrt(2.0) -AY 0 DE 0 0 color_code;
-		SR XX/sqrt(2.0) -AX YY/sqrt(2.0) AY 0 DE 0 0 color_code;
-		SR XX/sqrt(2.0) -AX YY/sqrt(2.0) -AY 0 DE 0 0 color_code;
-		SR XX/sqrt(2.0) -AX -YY/sqrt(2.0) AY 0 DE 0 0 color_code;
-		SR XX/sqrt(2.0) -AX -YY/sqrt(2.0) -AY 0 DE 0 0 color_code;
-		SR -XX/sqrt(2.0) AX YY/sqrt(2.0) AY 0 DE 0 0 color_code;
-		SR -XX/sqrt(2.0) AX YY/sqrt(2.0) -AY 0 DE 0 0 color_code;
-		SR -XX/sqrt(2.0) AX -YY/sqrt(2.0) AY 0 DE 0 0 color_code;
-		SR -XX/sqrt(2.0) AX -YY/sqrt(2.0) -AY 0 DE 0 0 color_code;
-		SR -XX/sqrt(2.0) -AX YY/sqrt(2.0) AY 0 DE 0 0 color_code;
-		SR -XX/sqrt(2.0) -AX YY/sqrt(2.0) -AY 0 DE 0 0 color_code;
-		SR -XX/sqrt(2.0) -AX -YY/sqrt(2.0) AY 0 DE 0 0 color_code;
-		SR -XX/sqrt(2.0) -AX -YY/sqrt(2.0) -AY 0 DE 0 0 color_code;
+		LOOP I -1 1;
+			LOOP J -1 1;
+				define_ray 0 I*aperture_half_width 0 J*aperture_half_height d_energy color;
+				LOOP K 0 7;
+					define_ray foil_x_radius*COS(K/4*PI) I*aperture_half_width foil_y_radius*SIN(K/4*PI) J*aperture_half_height d_energy color;
+				ENDLOOP;
+			ENDLOOP;
+		ENDLOOP;
 	ENDIF;
 ENDPROCEDURE;
 
 
-{load the computed rays using some black magic and save them in RAYVECOUT}
+{load the computed rays using some ~~black magic~~undocumented function and save them in RAYVECOUT}
 PROCEDURE READ_RAY;
-	VARIABLE ITRAY 1;
-	VARIABLE ITCOORD 1;
-	VARIABLE POSI 1 8;
-	VARIABLE POSF 1 8;
-	VARIABLE SAVEMAP 10000 8;
+	VARIABLE IT_RAY 1;
+	VARIABLE IT_COORD 1;
 	VARIABLE TMP 1;
 
-	SM SAVEMAP;
-
-	LOOP ITRAY 1 NRAY;
-		LOOP ITCOORD 1 8;
-			VELGET RAY(ITCOORD) ITRAY TMP;
-			POSI(ITCOORD):=TMP;
-		ENDLOOP;
-		POLVAL 1 SAVEMAP TWOND POSI TWOND POSF TWOND ;
-		LOOP ITCOORD 1 8;
-			RAYVECOUT(ITRAY,ITCOORD):=POSF(ITCOORD);
+	LOOP IT_RAY 1 NRAY;
+		LOOP IT_COORD 1 8;
+			VELGET RAY(IT_COORD) IT_RAY TMP;
+			RAYVECOUT(IT_RAY,IT_COORD):=TMP;
 		ENDLOOP;
 	ENDLOOP;
-
-	WVX := MAXRAYVEC(1)-MINRAYVEC(1);
-	WVY := MAXRAYVEC(3)-MINRAYVEC(3);
-	WVL := MAXRAYVEC(5)-MINRAYVEC(5);
 ENDPROCEDURE;
 
 
@@ -299,15 +266,14 @@ PROCEDURE main;
 	FR 3; {set the fringe field model}
 
 	E0 := 12.45;
-	RP E0 2.013553213 1; {E/MeV, Mass A, Charge z}
+	m0 := 2.013553213;
+	RP E0 m0 1; {E/MeV, Mass A, Charge z}
 	gamma := 1 + CONS(ETA);
 
 	{LSYS := 0; {hide the beamline elements}
 	LCE := 0; {hide the beamline element names}}
 	LAX := 0; {hide the system size numbers}
 	{PTY 40; {show it in real space}}
-
-	color_code := 9;
 
 	{DEFINITIONS OF RESULTS ************************}
 	RESDEF(1) := 'DE          ';
@@ -331,6 +297,9 @@ PROCEDURE main;
 	DESIGNDEF(5) := 'Time Resol.(ps)       ';
 	DESIGNDEF(6) := 'y-Size(mm)         ';
 	DESIGNDEF(7) := 'Plane Length(m)         ';
+	
+	{set system parameters}
+	S0 := 2.00;
 
 	{first, optimize the octopole to make the focal plane strait ************}
 
@@ -339,7 +308,7 @@ PROCEDURE main;
 	num_iterations := 0;
 	FIT Oct;
 		CR;
-		define_rays;
+		define_rays 0.0 0;
 		UM;
 		MRSt;
 
@@ -358,32 +327,33 @@ PROCEDURE main;
 		DE := -0.14+(IENERGY-1)*0.14/4; {defines 9 energies, +/- 0.xxx}
 	
 		CR;
-		define_rays;
+		define_rays DE 0;
 		UM;
 		MRSt;
 		READ_RAY;
 
 		FOPR(1,IENERGY) := DE;
-		TKIN := 12.45*(1+DE);
-		FOPR(2,IENERGY) := TKIN;
+		FOPR(2,IENERGY) := E0*(1+DE);
 		VELOCITY;
 		FOPR(3,IENERGY) := VELOC;
 		FOPR(4,IENERGY) := (MAXRAYVEC(5)+MINRAYVEC(5))/2;
-		FOPR(9,IENERGY) := RAYVECOUT(2,2);
+		FOPR(9,IENERGY) := RAYVECOUT(2,2);  {note that we’re using ray 2, not ray 1, because ray 1 is *always* the central ray}
 		FOPR(11,IENERGY) := RAYVECOUT(2,1);
 	ENDLOOP;
 
 	{run the final rays with the central energy and final octopole ************}
 
-	DE := 0;
 	FLAG_HO := 1;  {look at noncentral rays}
 
 	CR;
-	define_rays;
+	define_rays 0.0 0;
 	UM;
 	MRSt;
 	READ_RAY;
 
+	WVX := MAXRAYVEC(1)-MINRAYVEC(1);
+	WVY := MAXRAYVEC(3)-MINRAYVEC(3);
+	WVL := MAXRAYVEC(5)-MINRAYVEC(5);
 	LC := SPOS;
 
 	LOOP K 1 9;
@@ -449,22 +419,16 @@ PROCEDURE main;
 
 	WRITE 6 'L central ray (m)   = '&SF(LC,'(F11.5)');
 	WRITE 6 'Dispersion (mm/keV) = '&SF(ME(1,6)/(E0*cos(FP_tilt*PI/180)),'(F11.5)');
-	WRITE 6 'Time skew (ps/keV)  = '&SF((ME(5,6)+ME(1,6)*tan(FP_tilt*PI/180))*1e12*(1+gamma)/(CONS(v0)*gamma)/E0/1e3,'(F11.5)');
+	WRITE 6 'Time skew (ps/keV)  = '&SF((ME(5,6)*(1+gamma)/gamma-ME(1,6)*tan(FP_tilt*PI/180))*1e12/CONS(v0)/(E0*1e3),'(F11.5)');
 
 	{make a pretty multicolor picture ***************}
 
 	IF streamlined_mode=0;
 		FLAG_HO := 1;
 		CR;
-		DE := -0.01;
-		color_code := 3;
-		define_rays;
-		DE := 0.01;
-		color_code := 2;
-		define_rays;
-		DE := 0.0;
-		color_code := 5;
-		define_rays;
+		define_rays -0.1/E0 3;  { 12.35 MeV }
+		define_rays  0.1/E0 2;  { 12.55 MeV }
+		define_rays  0.0/E0 5;  { 12.45 MeV }
 		UM;
 		BP;
 		MRSt;

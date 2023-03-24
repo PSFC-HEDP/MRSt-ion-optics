@@ -1,12 +1,10 @@
-from math import sqrt, inf
-import subprocess
-import re
 import pickle
+import re
+import subprocess
+from math import sqrt, inf
 
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import optimize
-
 
 # FILE_TO_OPTIMIZE = "MRSt_OMEGA_linear"
 # PARAMETER_NAMES = ["Q1", "Q2", "S1", "S2", "angle", "u1", "u2"]
@@ -41,10 +39,9 @@ def optimize_design():
 def system_quality(parameters):
 	output = run_cosy(parameters)
 	time_skew = get_cosy_output(r"Time skew \(ps/keV\) += +", output)
-	tof_width = get_cosy_output(r"L central ray \(m\) += +", output)
+	tof_width = get_cosy_output(r"FPDESIGN Time Resol\.\(ps\) +", output)
 	energy_width = get_cosy_output(r"FPDESIGN HO Resol\.RAY\(keV\) +", output)
 	time_resolution = sqrt(tof_width**2 + (energy_width*time_skew)**2)
-	print(f"this design has a time resolution of {time_resolution:.1f} ps and an energy resolution of {energy_width:.1f} keV")
 
 	quality = 100*(time_resolution/100 + energy_width/400)
 	print(f"{parameters} -> {time_resolution}ps + {energy_width}keV = {quality:.2f}ps")
@@ -62,11 +59,10 @@ def run_cosy(parameters):
 		with open('temp.fox', 'w') as g:
 			g.write(modified_script)
 
-		try:
-			result = subprocess.run(['C:/Program Files/COSY 10.0/cosy.exe', 'temp'], capture_output=True, check=True)
-		except subprocess.CalledProcessError:
+		result = subprocess.run(['C:/Program Files/COSY 10.0/cosy.exe', 'temp'], capture_output=True, check=True)
+		if result.returncode > 0:
 			print(result.stdout.decode('ascii'))
-			raise
+			raise RuntimeError()
 
 		# store full parameter sets and their resulting COSY outputs in the cache
 		output = result.stdout.decode('ascii')
