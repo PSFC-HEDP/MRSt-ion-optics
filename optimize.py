@@ -1,17 +1,15 @@
 import pickle
 import re
 import subprocess
-from math import sqrt, inf
+from math import sqrt, inf, exp
 
 import numpy as np
 from scipy import optimize
 
-# FILE_TO_OPTIMIZE = "MRSt_OMEGA_linear"
-# PARAMETER_NAMES = ["Q1", "Q2", "S1", "S2", "angle", "u1", "u2"]
-# FILE_TO_OPTIMIZE = "MRSt_OMEGA_quadratic"
-# PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "angle", "u1", "u2"]
-FILE_TO_OPTIMIZE = "MRSt_OMEGA"
-PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
+FILE_TO_OPTIMIZE = "MRSt_OMEGA_quadratic"
+PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "angle", "u1", "u2"]
+# FILE_TO_OPTIMIZE = "MRSt_OMEGA"
+# PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
 
 with open(f'{FILE_TO_OPTIMIZE}.fox', 'r') as f:
 	script = f.read()
@@ -27,7 +25,7 @@ def optimize_design():
 	defaults, bounds = get_defaults()
 	initial_simplex = simplexify(defaults, bounds)
 	result = optimize.minimize(
-		system_quality,
+		objective_function,
 		defaults,
 		bounds=bounds,
 		method='Nelder-Mead',
@@ -36,19 +34,20 @@ def optimize_design():
 	print(result)
 
 
-def system_quality(parameters):
+def objective_function(parameters):
 	output = run_cosy(parameters)
 	time_skew = get_cosy_output(r"Time skew \(ps/keV\) += +", output)
 	tof_width = get_cosy_output(r"FPDESIGN Time Resol\.\(ps\) +", output)
 	energy_width = get_cosy_output(r"FPDESIGN HO Resol\.RAY\(keV\) +", output)
+	tilt_angle = get_cosy_output(r"FPDESIGN Tilt Angle\(deg\) +", output)
 	time_resolution = sqrt(tof_width**2 + (energy_width*time_skew)**2)
 
-	quality = 100*(time_resolution/100 + energy_width/500)
+	cost = 150*(time_resolution/150 + energy_width/300 + (exp(abs(tilt_angle) - 80)/5))
 	print("[", end="")
 	for parameter in parameters:
-		print(f"{parameter:.8g},", end="")
-	print(f"]\n\t->   {time_resolution:.2f}ps + {energy_width:.2f}keV = {quality:.2f}ps")
-	return quality
+		print(f"{parameter:.6g},", end="")
+	print(f"]\n\t->   {time_resolution:.2f}ps + {energy_width:.2f}keV + {tilt_angle:.2f}° = {cost:.2f}ps")
+	return cost
 
 
 def run_cosy(parameters):
