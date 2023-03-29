@@ -2,14 +2,18 @@ import pickle
 import re
 import subprocess
 from math import sqrt, inf, exp
+from typing import Tuple, List, Union
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy import optimize
+
 
 # FILE_TO_OPTIMIZE = "MRSt_OMEGA_quadratic"
 # PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "angle", "u1", "u2"]
 FILE_TO_OPTIMIZE = "MRSt_OMEGA"
 PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
+
 
 with open(f'{FILE_TO_OPTIMIZE}.fox', 'r') as f:
 	script = f.read()
@@ -22,6 +26,7 @@ except FileNotFoundError:
 
 
 def optimize_design():
+	""" optimize a COSY file by tweaking the given parameters to minimize the defined objective function """
 	defaults, bounds = get_defaults()
 	initial_simplex = simplexify(defaults, bounds)
 	result = optimize.minimize(
@@ -34,7 +39,8 @@ def optimize_design():
 	print(result)
 
 
-def objective_function(parameters):
+def objective_function(parameters: List[float]) -> float:
+	""" run COSY, read its output, and calculate a number that quantifies the system. smaller should be better """
 	output = run_cosy(parameters)
 	time_skew = get_cosy_output(r"Time skew \(ps/keV\) += +", output)
 	tof_width = get_cosy_output(r"FPDESIGN Time Resol\.\(ps\) +", output)
@@ -50,7 +56,7 @@ def objective_function(parameters):
 	return cost
 
 
-def run_cosy(parameters):
+def run_cosy(parameters: List[float]) -> str:
 	""" get the observable values at these perturbations """
 	parameters = tuple(parameters)
 	if parameters not in cache or "### ERRORS IN CODE" in cache[parameters]:
@@ -80,8 +86,9 @@ def run_cosy(parameters):
 	return cache[parameters]
 
 
-def get_cosy_output(pattern, output):
-	match = re.search(pattern + r"([-.\d*]+)", output)
+def get_cosy_output(pattern: str, output: str) -> float:
+	""" extract a single number from some COSY output using regex """
+	match = re.search(pattern + r"([-.\de*]+)[\sa-z()/]*", output)
 	if match is None:
 		print(output)
 		raise ValueError(f"couldn’t find /{pattern}/ in output")
@@ -92,7 +99,8 @@ def get_cosy_output(pattern, output):
 		return float(number)
 
 
-def get_defaults():
+def get_defaults() -> Tuple[NDArray[float], List[Tuple[float, float]]]:
+	""" read a COSY file to see what the free parameters are currently set to """
 	values = []
 	bounds = []
 	for name in PARAMETER_NAMES:
@@ -112,7 +120,9 @@ def get_defaults():
 	return np.array(values), bounds
 
 
-def simplexify(x0, ranges):
+def simplexify(x0: Union[NDArray[float], List[float]],
+               ranges: List[Tuple[float, float]]) -> NDArray[float]:
+	""" build an initial simplex out of an initial guess, using their bounds as a guide """
 	vertices = [np.array(x0)]
 	for i in range(len(x0)):
 		vertices.append(np.array(x0))
