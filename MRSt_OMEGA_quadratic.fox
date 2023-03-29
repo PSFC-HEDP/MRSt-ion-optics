@@ -33,7 +33,9 @@ VARIABLE velocity 1;
 
 VARIABLE E0 1;       {ion energy in MeV}
 VARIABLE m0 1;       {ion mass in Da}
+VARIABLE z0 1;       {ion charge in e}
 VARIABLE gamma 1;    {used for r5 scaling}
+VARIABLE spectral_range 1; {the range of energies we want to detect in MeV}
 
 VARIABLE RAYVECOUT 1 11000 8;
 
@@ -122,10 +124,10 @@ PROCEDURE MRSt;
 	{quad2+hex2: length Q  H  Oct     size}
 	M5           0.3    Q2 H2 0   0 0 0.01;
 
-	{pick this on the fly to get first-order focus}
+	{pick this drift length on the fly to get first-order focus}
 	S4 := -ME(1,2)/ME(2,2);
-	FP_depth := abs(0.286*ME(1,26)/ME(2,2));
-	IF S4<FP_depth;
+	FP_depth := abs(spectral_range/E0*ME(1,26)/ME(2,2));
+	IF S4<FP_depth;  {but make sure the detector doesn’t collide with the last element}
 		S4 := FP_depth;
 	ENDIF;
 	DL S4;
@@ -149,8 +151,6 @@ PROCEDURE READ_RAY;
 	VARIABLE TMP 1;
 	VARIABLE tilt_distance 1;
 	VARIABLE tilt_time 1;
-
-	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6));
 
 	LOOP IT_RAY 1 NRAY;
 		LOOP IT_COORD 1 8;
@@ -225,6 +225,9 @@ PROCEDURE main;
 
 	VARIABLE num_iterations 1;
 	VARIABLE objective 1;
+	
+	VARIABLE dispersion 1;
+	VARIABLE time_skew 1;
 
 	VARIABLE WVX 1;       {HO width signal distri at FP}
 	VARIABLE WVY 1;       {VERTICAL IMAGE SIZE}  
@@ -251,10 +254,12 @@ PROCEDURE main;
 	WSET 1.0E-3;
 	FR 3; {set the fringe field model}
 
-	E0 := 12.45;
-	m0 := 2.013553213;
-	RP E0 m0 1; {E/MeV, Mass A, Charge z}
+	E0 := 12.45; {MeV}
+	m0 := 2.013553213; {Da}
+	z0 := 1;
+	RP E0 m0 z0; {Energy, Mass, Charge}
 	gamma := 1 + CONS(ETA);
+	spectral_range := 3.56; {MeV}
 
 	{LSYS := 0; {hide the beamline elements}
 	LCE := 0; {hide the beamline element names}}
@@ -315,12 +320,39 @@ PROCEDURE main;
 
 	WRITE 6 'in '&SF(num_iterations,'(I2.1)')&' iterations found optimal octopole strength (T) =' Oct;}
 
+	{run the final rays with the central energy and final octopole ************}
+
+	CR;
+	define_rays 0.0 0 1;
+	UM;
+	MRSt;
+	FP_tilt := atan(-ME(1,26)/ME(2,2)/ME(1,6));
+	READ_RAY;
+
+	WVX := MAXRAYVEC(1)-MINRAYVEC(1);
+	WVY := MAXRAYVEC(3)-MINRAYVEC(3);
+	WVL := MAXRAYVEC(5)-MINRAYVEC(5);
+	LC := SPOS;
+
+	FPDESIGN(1) := FP_tilt*180/PI;
+
+	FPDESIGN(4) := WVX*E0*1000/abs(ME(1,6));
+	FPDESIGN(5) := WVL*1e12*(1+gamma)/(CONS(v0)*gamma);
+	FPDESIGN(6) := WVY*1000;
+
+	FPDESIGN(7) := spectral_range/E0*ME(1,6)/cos(FP_tilt);
+	calculate_focal_plane_curvature;
+	calculate_focal_plane_bend;
+
+	dispersion := ME(1,6)/(E0*cos(FP_tilt));
+	time_skew := (ME(5,6)*(1+gamma)/gamma-ME(1,6)*tan(FP_tilt))*1e12/CONS(v0)/(E0*1e3);
+
 	{scan thru 9 different energies to draw the focal plane ************}
 
 	IF streamlined_mode=0;
 		LOOP IENERGY 1 9;
-			d_energy := -0.14+(IENERGY-1)*0.14/4; {defines 9 energies, +/- 0.xxx}
-		
+			d_energy := spectral_range/E0*(-.5+(IENERGY-1)/8); {defines 9 energies, +/- 0.xxx}
+
 			CR;
 			define_rays d_energy 0 0;
 			UM;
@@ -337,19 +369,6 @@ PROCEDURE main;
 		ENDLOOP;
 	ENDIF;
 
-	{run the final rays with the central energy and final octopole ************}
-
-	CR;
-	define_rays 0.0 0 1;
-	UM;
-	MRSt;
-	READ_RAY;
-
-	WVX := MAXRAYVEC(1)-MINRAYVEC(1);
-	WVY := MAXRAYVEC(3)-MINRAYVEC(3);
-	WVL := MAXRAYVEC(5)-MINRAYVEC(5);
-	LC := SPOS;
-
 	LOOP K 1 9;
 		FOPR(5,K) := LC-FOPR(4,K);
 		FOPR(6,K) := 1E12*FOPR(5,K)/FOPR(3,K);
@@ -360,16 +379,6 @@ PROCEDURE main;
 		FOPR(10,K):=FOPR(8,K)*cos(FOPR(9,K));
 		FOPR(12,K):=FOPR(11,K)+FOPR(8,K)*sin(FOPR(9,K));
 	ENDLOOP;
-
-	FPDESIGN(1) := FP_tilt*180/PI;
-
-	FPDESIGN(4) := WVX*E0*1000/abs(ME(1,6));
-	FPDESIGN(5) := WVL*1e12*(1+gamma)/(CONS(v0)*gamma);
-	FPDESIGN(6) := WVY*1000;
-
-	FPDESIGN(7) := 0.286*ME(1,6)*tan(FP_tilt);
-	calculate_focal_plane_curvature;
-	calculate_focal_plane_bend;
 
 	IF streamlined_mode=0;
 		Z1 := FOPR(10,1);
@@ -390,6 +399,7 @@ PROCEDURE main;
 	ENDIF;
 
 	{print out all of the results ********************}
+
 	IF streamlined_mode=0;
 		LOOP M 4 12;
 			LOOP N 1 9;
@@ -402,8 +412,8 @@ PROCEDURE main;
 	ENDIF;
 
 	WRITE 6 'L central ray (m)   = '&SF(LC,'(F11.5)');
-	WRITE 6 'Dispersion (mm/keV) = '&SF(ME(1,6)/(E0*cos(FP_tilt)),'(F11.5)');
-	WRITE 6 'Time skew (ps/keV)  = '&SF((ME(5,6)*(1+gamma)/gamma-ME(1,6)*tan(FP_tilt))*1e12/CONS(v0)/(E0*1e3),'(F11.5)');
+	WRITE 6 'Dispersion (mm/keV) = '&SF(dispersion,'(F11.5)');
+	WRITE 6 'Time skew (ps/keV)  = '&SF(time_skew,'(F11.5)');
 
 	WRITE 6 '*****************************'; 
 	LOOP N 1 7;

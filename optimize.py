@@ -6,10 +6,10 @@ from math import sqrt, inf, exp
 import numpy as np
 from scipy import optimize
 
-FILE_TO_OPTIMIZE = "MRSt_OMEGA_quadratic"
-PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "angle", "u1", "u2"]
-# FILE_TO_OPTIMIZE = "MRSt_OMEGA"
-# PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
+# FILE_TO_OPTIMIZE = "MRSt_OMEGA_quadratic"
+# PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "angle", "u1", "u2"]
+FILE_TO_OPTIMIZE = "MRSt_OMEGA"
+PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
 
 with open(f'{FILE_TO_OPTIMIZE}.fox', 'r') as f:
 	script = f.read()
