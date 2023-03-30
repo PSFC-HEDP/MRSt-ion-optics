@@ -9,10 +9,11 @@ from numpy.typing import NDArray
 from scipy import optimize
 
 
-# FILE_TO_OPTIMIZE = "MRSt_OMEGA_quadratic"
-# PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "angle", "u1", "u2"]
 FILE_TO_OPTIMIZE = "MRSt_OMEGA"
-PARAMETER_NAMES = ["Q1", "Q2", "H1", "H2", "S1", "S2", "S3", "angle", "u1", "u2"]
+# ORDER = 2
+# PARAMETER_NAMES = ["Q2", "H2", "S1", "angle", "u1", "u2", "c1", "c2"]
+ORDER = 3
+PARAMETER_NAMES = ["Q2", "H2", "S1", "S2", "angle", "u1", "u2", "c1", "c2"]
 
 
 with open(f'{FILE_TO_OPTIMIZE}.fox', 'r') as f:
@@ -61,6 +62,7 @@ def run_cosy(parameters: List[float]) -> str:
 	parameters = tuple(parameters)
 	if parameters not in cache or "### ERRORS IN CODE" in cache[parameters]:
 		modified_script = re.sub(r"streamlined_mode := \d;", "streamlined_mode := 1;", script)
+		modified_script = re.sub(rf"order := \d;", f"order := {ORDER};", modified_script)
 		for i, name in enumerate(PARAMETER_NAMES):
 			modified_script = re.sub(rf"{name} := [-.\d]+;", f"{name} := {parameters[i]};", modified_script)
 
@@ -110,13 +112,15 @@ def get_defaults() -> Tuple[NDArray[float], List[Tuple[float, float]]]:
 			print(script)
 			raise RuntimeError(f"where is {name}?")
 		if name.startswith("S"):
-			bounds.append((0, 2.0))
+			bounds.append((0, 2.0))  # gaps must be positive, no more than 2m
 		elif name.startswith("angle"):
-			bounds.append((0, 90))
+			bounds.append((0, 90))  # don’t bend the beam more than 90°
 		elif name.startswith("u"):
-			bounds.append((-45, 45))
+			bounds.append((-45, 45))  # entrance/exit plane angles should be within 45°
+		elif name.startswith("c"):
+			bounds.append((-5e-3, 5e-3))  # entrance/exit plane bending should be within 5mm
 		else:
-			bounds.append((-.05, .05))
+			bounds.append((-.05, .05))  # magnetic field strengths should be within 50mT
 	return np.array(values), bounds
 
 

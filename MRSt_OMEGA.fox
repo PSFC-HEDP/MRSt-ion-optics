@@ -21,10 +21,11 @@ VARIABLE S0 1;
 VARIABLE S1 1;
 VARIABLE S2 1;
 VARIABLE S3 1;
-VARIABLE S4 1;
 
 VARIABLE u1 1;       {dipole1 entrance angle}
 VARIABLE u2 1;       {dipole1 exit angle}
+VARIABLE c1 1;       {dipole1 entrance curve depth}
+VARIABLE c2 1;       {dipole2 exit curve depth}
 
 {return variable for calculate_velocity*************}
 VARIABLE velocity 1;
@@ -105,43 +106,38 @@ PROCEDURE MRSt;
 
 	{entrance plane coefficients}
 	B1S1(1) := TAN(u1*PI/180);
-	B1S1(2) := 0.0;
+	B1S1(2) := c1/0.015^2;
 	B1S1(3) := 0.0;
 
 	{exit plane coefficients}
 	B1S2(1) := TAN(u2*PI/180);
-	B1S2(2) := 0.0;
+	B1S2(2) := c2/0.015^2;
 	B1S2(3) := 0.0;
 
 	PS 0.001;
 
 	DL S0;
 
-	{quad1+hex1: length Q  H  Oct     size}
-	M5           0.05   Q1 H1 0   0 0 0.005;
-
-	DL S1;
-
 	{dipole: R   θ     size  profile entrance exit order}
 	MC       0.6 angle 0.015 B1N     B1S1     B1S2 3;
 
-	DL S2;
+	DL S1;
 
 	{octopole: length Q H Oct     size}
 	M5         0.03   0 0 Oct 0 0 0.020;
 
-	DL S3;
+	DL S2;
 
 	{quad2+hex2: length Q  H  Oct     size}
-	M5           0.05   Q2 H2 0   0 0 0.025;
+	M5           0.07   Q2 H2 0   0 0 0.025;
 
 	{pick this drift length on the fly to get first-order focus}
-	S4 := -ME(1,2)/ME(2,2);
+	S3 := -ME(1,2)/ME(2,2);
 	FP_depth := abs(spectral_range/E0*ME(1,26)/ME(2,2));
-	IF S4<FP_depth;  {but make sure the detector doesn’t collide with the last element}
-		S4 := FP_depth;
+	IF S3<FP_depth;  {but make sure the detector doesn’t collide with the last element}
+		S3 := FP_depth;
 	ENDIF;
-	DL S4;
+	DL S3;
 
 	PS 0.02;
 ENDPROCEDURE;
@@ -228,6 +224,7 @@ ENDPROCEDURE;
 {MAIN ROUTINE ************************************}
 PROCEDURE main;
 	VARIABLE streamlined_mode 1;
+	VARIABLE order 1;
 
 	VARIABLE RESDEF 12 20;
 	VARIABLE DESIGNDEF 18 10;
@@ -257,11 +254,13 @@ PROCEDURE main;
 	VARIABLE N 1;
 	VARIABLE K 1;
 
-	streamlined_mode := 0;
 
 	{initialize COSY ************************************}
 
-	OV 3 3 3; {set the calculations to 3rd order}
+	streamlined_mode := 0;
+	order := 3;
+
+	OV order 3 3; {set the calculations to 3rd order}
 	WSET 1.0E-3;
 	FR 3; {set the fringe field model}
 
@@ -275,7 +274,19 @@ PROCEDURE main;
 	{LSYS := 0; {hide the beamline elements}
 	LCE := 0; {hide the beamline element names}}
 	LAX := 0; {hide the system size numbers}
-	{PTY 40; {show it in real space}}
+	PTY 10; {show it in real space}
+
+	{set system parameters}
+	S0 := 2.00;
+	S1 := 6.527709286264946e-06;
+	S2 := 3.806448585129748e-05;
+	angle := 44.620850528968475;
+	u1 := -39.478031178188914;
+	u2 := -24.20989343862091;
+	c1 := 0.00038499382147961375;
+	c2 := -0.0007278609510021307;
+	Q2 := 0.027783210866866342;
+	H2 := 0.05;
 
 	{DEFINITIONS OF RESULTS ************************}
 	RESDEF(1) := 'DE          ';
@@ -300,36 +311,25 @@ PROCEDURE main;
 	DESIGNDEF(6) := 'y-Size(mm)         ';
 	DESIGNDEF(7) := 'Plane Length(m)         ';
 
-	{set system parameters}
-	S0 := 2.00;
-	S1 := 2.972763838028667e-06;
-	S2 := 0.013702885075131899;
-	S3 := 0.0023190334936629468;
-	angle := 40.603872588057314;
-	u1 := -22.229936279181082;
-	u2 := -36.12076307342795;
-	Q1 := 0.03522156509277463;
-	Q2 := 0.04990628536790016;
-	H1 := 0.00029036265107025225;
-	H2 := 0.049998490356888484;
-
 	{first, optimize the octopole to make the focal plane strait ************}
 
-	Oct := 0.;
-	num_iterations := 0;
-	FIT Oct;
-		CR;
-		define_rays 0.0 0 0;
-		UM;
-		MRSt;
+	IF order>2;
+		Oct := 0.;
+		num_iterations := 0;
+		FIT Oct;
+			CR;
+			define_rays 0.0 0 0;
+			UM;
+			MRSt;
 
-		calculate_focal_plane_curvature;
-		objective := 1/FPDESIGN(2);
-	
-		num_iterations := num_iterations+1;
-	ENDFIT 1e-8 100 4 objective;
+			calculate_focal_plane_curvature;
+			objective := 1/FPDESIGN(2);
+		
+			num_iterations := num_iterations+1;
+		ENDFIT 1e-8 100 4 objective;
 
-	WRITE 6 'in '&SF(num_iterations,'(I2.1)')&' iterations found optimal octopole strength (T) =' Oct;
+		WRITE 6 'in '&SF(num_iterations,'(I2.1)')&' iterations found optimal octopole strength (T) =' Oct;
+	ENDIF;
 
 	{run the final rays with the central energy and final octopole ************}
 
@@ -422,6 +422,7 @@ PROCEDURE main;
 		PM 6;
 	ENDIF;
 
+	WRITE 6 'FP distance (cm)    = '&SF(S3*100,'(F11.5)');
 	WRITE 6 'L central ray (m)   = '&SF(LC,'(F11.5)');
 	WRITE 6 'Dispersion (mm/keV) = '&SF(dispersion,'(F11.5)');
 	WRITE 6 'Time skew (ps/keV)  = '&SF(time_skew,'(F11.5)');
