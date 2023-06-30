@@ -1,9 +1,6 @@
 INCLUDE 'COSY' ;
 PROCEDURE RUN ;
 
-{Georg Berg and Johan Frenje}
-{Symmetric MRSt, GB 10/29/2019}
-
 {VARIABLES FOR SYSTEM***********************************}
 
 VARIABLE B1N 1 5;     {dipole1 B-field index}
@@ -134,7 +131,7 @@ PROCEDURE MRSt;
 	{pick this drift length on the fly to get first-order focus}
 	S3 := -ME(1,2)/ME(2,2);
 	FP_depth := abs(spectral_range/E0*ME(1,26)/ME(2,2));
-	IF S3<FP_depth;  {but make sure the detector doesn’t collide with the last element}
+	IF S3<FP_depth;  {but make sure the detector doesn't collide with the last element}
 		S3 := FP_depth;
 	ENDIF;
 	DL S3;
@@ -165,7 +162,7 @@ PROCEDURE READ_RAY;
 			RAYVECOUT(IT_RAY,IT_COORD):=TMP;
 		ENDLOOP;
 
-		{here’s a little something Georg neglected: the TOF correction due to the detector plane tilt}
+		{here's a little something Georg neglected: the TOF correction due to the detector plane tilt}
 		tilt_distance := RAYVECOUT(IT_RAY,1)*tan(FP_tilt);
 		calculate_velocity RAYVECOUT(IT_RAY,6);
 		tilt_time := tilt_distance/velocity;
@@ -199,7 +196,7 @@ FUNCTION MINRAYVEC I;
 ENDFUNCTION;
 
 
-{calculate focal plane’s radius of curvature}
+{calculate focal plane's radius of curvature}
 PROCEDURE calculate_focal_plane_curvature;
 	VARIABLE numerator 1;
 	VARIABLE denominator 1;
@@ -209,7 +206,7 @@ PROCEDURE calculate_focal_plane_curvature;
 ENDPROCEDURE;
 
 
-{calculate focal plane’s signed p-dist (its maximum distance from the detector)}
+{calculate focal plane's signed p-dist (its maximum distance from the detector)}
 PROCEDURE calculate_focal_plane_bend;
 	FPDESIGN(3) := 1000*0.5*FPDESIGN(7);
 	IF ABS(FPDESIGN(2))>ABS(FPDESIGN(7));
@@ -271,14 +268,14 @@ PROCEDURE main;
 	gamma := 1 + CONS(ETA);
 	spectral_range := 3.56; {MeV}
 
-	{LSYS := 0; {hide the beamline elements}
-	LCE := 0; {hide the beamline element names}}
+	{LSYS := 0; {hide the beamline elements}}
+	LCE := 0; {hide the beamline element names}
 	LAX := 0; {hide the system size numbers}
-	PTY 10; {show it in real space}
+	PTY 1; {show it in real space}
 
 	{set system parameters}
 	S0 := 2.00;
-	S1 := 6.527709286264946e-06;
+	S1 := .01;
 	S2 := 3.806448585129748e-05;
 	angle := 44.620850528968475;
 	u1 := -39.478031178188914;
@@ -375,7 +372,7 @@ PROCEDURE main;
 			FOPR(2,IENERGY) := E0*(1+d_energy);
 			FOPR(3,IENERGY) := velocity;
 			FOPR(4,IENERGY) := (MAXRAYVEC(5)+MINRAYVEC(5))/2;
-			FOPR(9,IENERGY) := RAYVECOUT(2,2);  {note that we’re using ray 2, not ray 1, because ray 1 is *always* the central ray}
+			FOPR(9,IENERGY) := RAYVECOUT(2,2);  {note that we're using ray 2, not ray 1, because ray 1 is *always* the central ray}
 			FOPR(11,IENERGY) := RAYVECOUT(2,1);
 		ENDLOOP;
 	ENDIF;

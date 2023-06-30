@@ -61,13 +61,14 @@ def run_cosy(parameters: List[float]) -> str:
 	""" get the observable values at these perturbations """
 	parameters = tuple(parameters)
 	if parameters not in cache or "### ERRORS IN CODE" in cache[parameters]:
-		modified_script = re.sub(r"streamlined_mode := \d;", "streamlined_mode := 1;", script)
+		modified_script = script
+		modified_script = re.sub(r"streamlined_mode := \d;", "streamlined_mode := 1;", modified_script)
 		modified_script = re.sub(rf"order := \d;", f"order := {ORDER};", modified_script)
 		for i, name in enumerate(PARAMETER_NAMES):
 			modified_script = re.sub(rf"{name} := [-.\d]+;", f"{name} := {parameters[i]};", modified_script)
 
-		with open('temp.fox', 'w') as g:
-			g.write(modified_script)
+		with open('temp.fox', 'w') as f:
+			f.write(modified_script)
 
 		result = subprocess.run(['C:/Program Files/COSY 10.0/cosy.exe', 'temp'], capture_output=True, check=True)
 		if result.returncode > 0:
@@ -80,8 +81,8 @@ def run_cosy(parameters: List[float]) -> str:
 			print(re.sub(r"[\n\r]+", "\n", output))
 			raise RuntimeError("COSY threw an error")
 		output = output[1036:]
-		cache[parameters] = output
 
+		cache[parameters] = output
 		with open(f"{FILE_TO_OPTIMIZE}_cache.pkl", "wb") as file:
 			pickle.dump(cache, file)
 
@@ -119,8 +120,10 @@ def get_defaults() -> Tuple[NDArray[float], List[Tuple[float, float]]]:
 			bounds.append((-45, 45))  # entrance/exit plane angles should be within 45°
 		elif name.startswith("c"):
 			bounds.append((-5e-3, 5e-3))  # entrance/exit plane bending should be within 5mm
-		else:
+		elif name.startswith("H") or name.startswith("Q") or name.startswith("O"):
 			bounds.append((-.05, .05))  # magnetic field strengths should be within 50mT
+		else:
+			raise ValueError(f"I don’t know what kind of quantity {name} is, so I can’t guess what its bounds should be.")
 	return np.array(values), bounds
 
 

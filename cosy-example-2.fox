@@ -9,6 +9,12 @@ PROCEDURE run;
 	VARIABLE isochronous_angle 1;
 	VARIABLE dispersion 1;
 
+
+	{ define the discrete rays to simulate.  these will not affect the map
+	  output by ME and PM, but they will affect the output picture.  we can
+	  also read these ray coordinates directly using the VELGET function with
+	  the RAY variable, but I don't do that in this file.
+	}
 	PROCEDURE set_rays;
 		VARIABLE a 1;
 		VARIABLE b 1;
@@ -26,6 +32,10 @@ PROCEDURE run;
 		SB 0 .01 0 0 .01 0 0 .02 0 0 0; {set the beam dimensions}
 	ENDPROCEDURE;
 
+
+	{ modify the rays and the map according to the magnetic elements of the
+	  system.  this is where the magnet strengths and lengths come into play.
+	}
 	PROCEDURE define_geometry bend_angle face_angle;
 		VARIABLE field_coefs 1 1;
 		VARIABLE shape_1 1 1;
@@ -36,18 +46,31 @@ PROCEDURE run;
 
 		DL .50; {drift of length 50 cm}
 		MC .10 bend_angle .01 field_coefs shape_1 shape_2 1; {magnetic dipole component, 10 cm radius, 30 degrees, 1 cm aperture}
-		DL .50; { drift of length 50 cm}
+		DL -ME(1,2)/ME(2,2); {drift length set to achieve first-order focus}
 		PS .01; {poincare section (but it's actually just a line)}
 	ENDPROCEDURE;
 
+
+	{ calculate the key properties of the ion-optic system using the ME
+	  matrix.  the equations used here can be reproduced with some calculus
+	  that's only somewhat tedius.
+	}
 	PROCEDURE calculate_properties;
+		VARIABLE numerator 1;
+		VARIABLE denominator 1;
 		focalplane_angle := atan(-ME(1,26)/ME(2,2)/ME(1,6));
-		{focalplane_angle := atan((-ME(1,26)/ME(2,2) + ME(1,2)*ME(2,26)/ME(2,2)^2)/ME(1,6));?}
-		focalplane_curvature := ME(1,1)*ME(1,266)/ME(1,6)^2;
+		numerator := (ME(1,6)^2+ME(1,1)^2*ME(1,26)^2)^1.5;
+		denominator := ME(1,1)*(ME(1,6)*ME(1,266)-ME(1,26)*(ME(1,66)+2*ME(1,6)*ME(1,1)*ME(2,26)));
+		focalplane_curvature := numerator/denominator;
 		isochronous_angle := atan(ME(5,6)/ME(1,6));
 		dispersion := central_energy/ME(1,6)*cos(focalplane_angle);
 	ENDPROCEDURE;
-	
+
+
+	{ perform simplex optimization to find the dipole bend angle and face
+	  angle combination that yields a flat focal plane with the desired
+	  dispersion.
+	}
 	PROCEDURE optimize_design;
 		VARIABLE bend_angle 1;
 		VARIABLE face_angle 1;
@@ -56,29 +79,29 @@ PROCEDURE run;
 		OV 3 3 0; {3rd order, 3d phase space, 0 parameters}
 		RP central_energy 1 1; {kinetic energy 15MeV, mass 1 Da, charge 1 e}
 		FR 3; {fringe field mode 3 (enge function)}
-		
+
 		bend_angle := 30;
 		face_angle := 0;
 		FIT bend_angle face_angle;
-		
+
 			UM; {set the map to unity}
-			
+
 			set_rays;
-			
+
 			BP; {begin picture}
 
 			define_geometry bend_angle face_angle;
 
 			EP; {end picture}
 			PG -1 -2; {show the picture from the x and y directions with an envelope (windows 1 and 2)}
-			
+
 			calculate_properties;
-			error := (ME(1,2)/1.)^2 + ((dispersion - 10)/10)^2;
-			
+			error := (focalplane_curvature)^2 + ((dispersion - 10)/10)^2;
+
 			WRITE 6 '['&ST(bend_angle)&', '&ST(face_angle)&', '&ST(error)&'],';
-		
+
 		ENDFIT 1e-5 1000 1 error;
-		
+
 		WRITE 6 '';
 		WRITE 6 'focal plane angle       = '&ST(focalplane_angle*180/PI)&' degrees';
 		WRITE 6 'focal plane curvature   = '&ST(focalplane_curvature)&' m^-1';
@@ -86,10 +109,11 @@ PROCEDURE run;
 		WRITE 6 'dispersion              = '&ST(dispersion*10)&' keV/cm';
 		WRITE 6 '';
 		WRITE 6 'tranfer matrix:';
-		
+
 		PM 6; {prints the map to the console}
 	ENDPROCEDURE;
-	
+
+
 	central_energy := 15; {MeV}
 	optimize_design;
 
